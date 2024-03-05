@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MQTT Data Listener</title>
+</head>
+<body>
+    <h1>MQTT Data</h1>
+    <ul id="mqttData"></ul>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.2.7/mqtt.min.js"></script>
+    <script>
+        // MQTT broker connection parameters
+        const brokerUrl = "mqtt://broker.hivemq.com:1883";
+        const clientId = "mqtt_listener";
+
+        // Connect to the MQTT broker
+        const client = mqtt.connect(brokerUrl, { clientId });
+
+        // Callback function when the client is connected
+        client.on("connect", () => {
+            console.log("Connected to MQTT broker");
+            client.subscribe("testeen210!"); // Subscribe to the MQTT topic you're interested in
+        });
+
+        // Callback function when a new MQTT message is received
+        client.on("message", (topic, message) => {
+            const mqttData = JSON.parse(message.toString());
+            console.log("Received MQTT data:", mqttData);
+
+            // Add the MQTT data to the HTML list
+            const mqttDataList = document.getElementById("mqttData");
+            const listItem = document.createElement("li");
+            listItem.textContent = JSON.stringify(mqttData);
+            mqttDataList.appendChild(listItem);
+        });
+    </script>
+</body>
+</html>

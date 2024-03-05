@@ -1,0 +1,9 @@
+fastapi==0.109.0
+matplotlib==3.7.1
+numpy==1.24.2
+pandas==2.1.4
+Pillow==10.2.0
+scikit_learn==1.3.2
+uvicorn
+websocket_client
+websockets
