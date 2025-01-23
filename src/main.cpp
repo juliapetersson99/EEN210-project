@@ -6,11 +6,11 @@
 
 // Public internet, allow port in firewall
 // Replace with your network credentials
-const char *ssid = "Alex iPhone (2)";
-const char *password = "bastadburger";
+const char *ssid = "iPhone (4)";
+const char *password = "P4S5W0RD-9"; 
 
 // Replace with your WebSocket server address
-const char *webSocketServer = "172.20.10.2";
+const char *webSocketServer = "172.20.10.3";
 
 const int webSocketPort = 8000;
 const char *webSocketPath = "/";
@@ -53,6 +53,7 @@ void loop()
     mpu.getAcceleration(&ax, &ay, &az);
     mpu.getRotation(&gx, &gy, &gz);
 
+
     // Convert data to a JSON string
     String payload = "{\"acceleration_x\":" + String(ax) +
                      ",\"acceleration_y\":" + String(ay) +
@@ -61,7 +62,7 @@ void loop()
                      ",\"gyroscope_y\":" + String(gy) +
                      ",\"gyroscope_z\":" + String(gz) + "}";
 
-    Serial.println("Skiikar....");
+    Serial.println("Skickar....");
     // server address, port and URL
     // Send data via WebSocket
     client.sendTXT(payload);

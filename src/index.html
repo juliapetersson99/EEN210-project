@@ -19,7 +19,7 @@
     </ul>
     <script>
         // Change Ip address based on your current wifi ip address
-        var ws = new WebSocket("ws://172.20.10.2:8000/ws");
+        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
         ws.onopen = function (event) {
             console.log("WebSocket state:", ws.readyState);  // This will log "OPEN"
         };
