@@ -4,10 +4,35 @@
 #include <WebSocketsClient.h>
 #include <Adafruit_BusIO_Register.h>
 
+const int MPU6050_ADDR = 0x68; 
+
+uint8_t readRegister(uint8_t reg) {
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission(false); 
+  Wire.requestFrom(MPU6050_ADDR, (uint8_t));
+  if (Wire.available()) {
+    return Wire.read();
+  }
+  return 0;
+}
+
+void writeRegister(uint8_t reg, uint8_t data) {
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(reg);
+  Wire.write(data);
+  Wire.endTransmission();
+}
+
 // Public internet, allow port in firewall
 // Replace with your network credentials
 const char *ssid = "iPhone (4)";
 const char *password = "P4S5W0RD-9"; 
+
+const int PWR_MGMT_1 = 0x6B;
+const int CONFIG = 0x1A;
+const int GYRO_CONFIG = 0x1B;
+const int ACCEL_CONFIG = 0x1C;
 
 // Replace with your WebSocket server address
 const char *webSocketServer = "172.20.10.3";
@@ -39,6 +64,44 @@ void setup()
   client.begin(webSocketServer, webSocketPort, "/ws");
   Serial.println(client.isConnected());
   wifiConnected = true;
+
+  uint8_t accel_config = readRegister(ACCEL_CONFIG);
+  accel_config &= ~0x18; // Clear bits 4:3
+  accel_config |= (2 << 3); // Set to 2 for ±8g
+  uint8_t accel_range = (accel_config & 0x18) >> 3; // Bits 4:3
+
+  writeRegister(ACCEL_CONFIG, accel_config);
+  Serial.print("Accelerometer Range: ");
+  switch (accel_range) {
+    case 0: Serial.println("±2g"); break;
+    case 1: Serial.println("±4g"); break;
+    case 2: Serial.println("±8g"); break;
+    case 3: Serial.println("±16g"); break;
+    default: Serial.println("Unknown");
+  }
+  
+  
+
+  uint8_t gyro_config = readRegister(GYRO_CONFIG);
+  writeRegister(GYRO_CONFIG, gyro_config);
+  gyro_config &= ~0x18; // Clear bits 4:3 (FS_SEL)
+  gyro_config |= (3 << 3);
+  uint8_t gyro_range = (gyro_config & 0x18) >> 3; // Bits 4:3
+  Serial.print("Gyroscope Range: ");
+  switch (gyro_range) {
+    case 0: Serial.println("±250°/s"); break;
+    case 1: Serial.println("±500°/s"); break;
+    case 2: Serial.println("±1000°/s"); break;
+    case 3: Serial.println("±2000°/s"); break;
+    default: Serial.println("Unknown");
+  }
+  delay(1000);
+
+
+
+  //
+
+
 }
 
 void loop()

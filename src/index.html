@@ -15,6 +15,7 @@
 <body>
     <h1>Real-time data collection</h1>
     <button id="closeButton">Close Connection</button>
+    <div id="buttons"></div>
     <ul id="messages">
     </ul>
     <script>
@@ -52,7 +53,33 @@
             // Call the close function when the button is clicked
             close();
         });
+
+        const labels = "falling,walking,running,sitting,standing,lying,recover".split(",");
+        const buttonsContainer = document.getElementById('buttons');
+
+        labels.forEach(label => {
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'activity';
+            radio.value = label;
+            radio.id = label;
+
+            const labelElement = document.createElement('label');
+            labelElement.htmlFor = label;
+            labelElement.textContent = label;
+
+            radio.addEventListener('change', () => {
+                fetch('http://localhost:8000/collect/' + label);
+            });
+
+            buttonsContainer.appendChild(radio);
+            buttonsContainer.appendChild(labelElement);
+            buttonsContainer.appendChild(document.createElement('br'));
+        });
+
     </script>
 
 
-</body></html>
+</body>
+
+</html>

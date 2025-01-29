@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open("./src/index.html", "r") as f:
+with open("./src/index.html", "r") as f: # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
     html = f.read()
 
 
@@ -88,19 +88,30 @@ class WebSocketManager:
 websocket_manager = WebSocketManager()
 model = load_model()
 
-
 @app.get("/")
 async def get():
     return HTMLResponse(html)
 
 
+current_label = "walking"
+
+
+@app.get("/collect/{label}")
+async def collect_data(label: str):
+    global current_label
+    print("Label changed to:", label)
+    current_label = label
+
+    return {"message": "Data collected"}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    global current_label
     await websocket_manager.connect(websocket)
     try:
         while True:
             data = await websocket.receive_text()
-            print("hi")
 
             # Broadcast the incoming data to all connected clients
             json_data = json.loads(data)
@@ -109,7 +120,7 @@ async def websocket_endpoint(websocket: WebSocket):
             raw_data = list(json_data.values())
 
             # Add time stamp to the last received data
-            json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
             data_processor.add_data(json_data)
             # this line save the recent 100 samples to the CSV file. you can change 100 if you want.
@@ -122,7 +133,7 @@ async def websocket_endpoint(websocket: WebSocket):
             You need to modify the predict_label function to return the true label
             """
             label = predict_label(model, raw_data)
-            json_data["label"] = label
+            json_data["label"] = current_label
 
             # print the last data in the terminal
             print(json_data)
