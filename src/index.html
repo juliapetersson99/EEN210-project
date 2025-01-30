@@ -69,7 +69,7 @@
             labelElement.textContent = label;
 
             radio.addEventListener('change', () => {
-                fetch('http://localhost:8000/collect/' + label);
+                fetch('http://172.20.10.3:8000/collect/' + label);
             });
 
             buttonsContainer.appendChild(radio);

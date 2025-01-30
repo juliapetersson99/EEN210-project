@@ -93,7 +93,7 @@ async def get():
     return HTMLResponse(html)
 
 
-current_label = "walking"
+current_label = "none"
 
 
 @app.get("/collect/{label}")
