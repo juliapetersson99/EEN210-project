@@ -1,4 +1,6 @@
-<html><head>
+<html>
+
+<head>
     <title>Fall detection</title>
     <style>
         /* Add some CSS for styling the scrollable area */
@@ -54,7 +56,7 @@
             close();
         });
 
-        const labels = "falling,walking,running,sitting,standing,lying,recover".split(",");
+        const labels = "falling,walking,sitting,standing,lying,recover".split(",");
         const buttonsContainer = document.getElementById('buttons');
 
         labels.forEach(label => {
@@ -69,7 +71,7 @@
             labelElement.textContent = label;
 
             radio.addEventListener('change', () => {
-                fetch('http://172.20.10.3:8000/collect/' + label);
+                fetch('http://localhost:8000/collect/' + label);
             });
 
             buttonsContainer.appendChild(radio);

@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
+from predict import load_data, train_model, predict
 
 app = FastAPI()
 # Enable CORS for all origins
@@ -19,7 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open("./src/index.html", "r") as f: # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
+with open(
+    "./src/index.html", "r"
+) as f:  # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
     html = f.read()
 
 
@@ -51,14 +54,18 @@ data_processor = DataProcessor()
 
 def load_model():
     # you should modify this function to return your model
-    model = None
+    print("Loading model...")
+    data = load_data()
+    print("Training model...")
+    model = train_model(data)
+    print("Model loaded successfully")
     return model
 
 
 def predict_label(model=None, data=None):
     # you should modify this to return the label
     if model is not None:
-        label = model(data)
+        label = model.predict(data)
         return label
     return 0
 
@@ -88,12 +95,13 @@ class WebSocketManager:
 websocket_manager = WebSocketManager()
 model = load_model()
 
+
 @app.get("/")
 async def get():
     return HTMLResponse(html)
 
 
-current_label = "none"
+current_label = None
 
 
 @app.get("/collect/{label}")
@@ -133,7 +141,7 @@ async def websocket_endpoint(websocket: WebSocket):
             You need to modify the predict_label function to return the true label
             """
             label = predict_label(model, raw_data)
-            json_data["label"] = current_label
+            json_data["label"] = current_label or label
 
             # print the last data in the terminal
             print(json_data)
