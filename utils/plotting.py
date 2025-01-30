@@ -136,7 +136,7 @@ def plot_with_labels(data_frame, plt_name):
     ax[0].legend(loc='upper left', fontsize=10)
     ax[1].legend(loc='upper left', fontsize=10)
     plt.tight_layout(rect=[0, 0, 0.85, 0.95])  # Leave space on the right for the Activity Labels legend, nededs ot be in   
-    plt.savefig('plots/' + plt_name + '.png', bbox_inches='tight')
+    plt.savefig(plt_name + '.png', bbox_inches='tight')
     plt.close()
     
 

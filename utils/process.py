@@ -13,7 +13,7 @@ def split_dataframe_into_sliding_windows(df, window_size):
 
     current_start = start
     while current_start < end:
-        print(current_start)
+        #print(current_start)
         current_end = current_start + pd.Timedelta(window_size)
         window = df[current_start:current_end]
         if not window.empty:
