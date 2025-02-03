@@ -1,4 +1,6 @@
-<html><head>
+<html>
+
+<head>
     <title>Fall detection</title>
     <style>
         /* Add some CSS for styling the scrollable area */
@@ -54,7 +56,7 @@
             close();
         });
 
-        const labels = "falling,walking,running,sitting,standing,lying,recover".split(",");
+        const labels = "falling,walking,running,sitting,standing,laying,recover".split(",");
         const buttonsContainer = document.getElementById('buttons');
 
         labels.forEach(label => {
