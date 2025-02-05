@@ -66,7 +66,28 @@ def low_pass_filter(data_frame, cutoff=3, fs=100, order=3):
     
     return filtered_data
 
+def add_features(data_frame):
+    data_types = ['acceleration', 'gyroscope']
+    dimensions = ['x', 'y', 'z']
+    for data_type in data_types:
+        for dimension in dimensions:
+            column_name = f"{data_type}_{dimension}"
+            data = data_frame[column_name]
+            data_frame[f"{column_name}_mean"] = data.mean()
+            data_frame[f"{column_name}_std"] = data.std()
+            data_frame[f"{column_name}_min"] = data.min()
+            data_frame[f"{column_name}_max"] = data.max()
+            data_frame[f"{column_name}_median"] = data.median()
+        
+        data_frame[f"{data_type}_magnitude"] = np.sqrt(
+            data_frame[f"{data_type}_x"] ** 2 +
+            data_frame[f"{data_type}_y"] ** 2 +
+            data_frame[f"{data_type}_z"] ** 2
+        )
+        data = data_frame[f"{data_type}_magnitude_std"] =   data_frame[f"{data_type}_magnitude"].std()
 
+    return data_frame
+    
 
 def segment_file(df, sensor_columns, window_size, overlap):
 
@@ -157,8 +178,6 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
 
         
     
-
-
 def encode_labels(labels):
     unique_labels = sorted(set(labels))
     label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}

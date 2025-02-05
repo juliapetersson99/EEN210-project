@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.patches as mpatches
 
-
 def split_dataframe_into_sliding_windows(df, window_size):
 
     df["timestamp"] = pd.to_datetime(df["timestamp"])

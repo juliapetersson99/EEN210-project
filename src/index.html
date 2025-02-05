@@ -18,6 +18,11 @@
     <h1>Real-time data collection</h1>
     <button id="closeButton">Close Connection</button>
     <div id="buttons"></div>
+
+    <div id="current_state">
+
+    </div>
+
     <ul id="messages">
     </ul>
     <script>
@@ -32,12 +37,21 @@
             var message = document.createElement('li');
             var content = document.createTextNode(event.data);
             message.appendChild(content);
-
-            // Append the new li element to the ul element
             messages.appendChild(message);
-
-            // Scroll to the bottom
             messages.scrollTop = messages.scrollHeight;
+
+
+            try {
+                const data = JSON.parse(event.data);
+                if (data.label) {
+                    document.getElementById('current_state').innerHTML = `
+                        <h2>Current Activity:</h2>
+                        <h3>${data.label}</h3>
+                    `;
+                }
+            } catch (e) {
+                console.log("Not a prediction message");
+            }
         };
 
         close = function () {

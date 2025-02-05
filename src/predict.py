@@ -55,7 +55,7 @@ def train_model(data):
     return clf, min_max_scaler
 
 
-def predict(model, input_data):
+def predict(model, input_df):
     return model.predict(input_data)
 
 

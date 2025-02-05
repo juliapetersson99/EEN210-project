@@ -123,7 +123,8 @@ async def collect_data(label: str):
 async def websocket_endpoint(websocket: WebSocket):
     global current_label
     await websocket_manager.connect(websocket)
-    label_history = []
+    df = None
+    window = 20
 
     try:
         while True:
@@ -143,29 +144,34 @@ async def websocket_endpoint(websocket: WebSocket):
             if len(data_processor.data_buffer) >= 100:
                 data_processor.save_to_csv()
 
+            newDataDf = pd.DataFrame(json_data)
+            newDataDf["timestamp"] = pd.Timestamp.now()
+            newDataDf["label"] = None  
+
+            if df is None:
+                df = newDataDf 
+            else:
+                df = pd.concat([newDataDf, df], ignore_index=True)
+                if len(df) > window: 
+                    df = df[1:]
+
             """  
             In this line we use the model to predict the labels.
             Right now it only return 0.
             You need to modify the predict_label function to return the true label
             """
-            label = predict_label(model, scaler, raw_data)
-            json_data["label"] = current_label or label
 
-            n = 50
-            # Store the last n labels
-            label_history.append(label)
-            if len(label_history) > 50:
-                label_history.pop(0)
+            label = predict_label(model, scaler, df)
+            json_data["label"] = current_label or label
+            df.loc[-1, 'label'] = current_label or label
 
             # Calculate the distribution of the last 50 labels
-            label_distribution = {
-                label: label_history.count(label) / len(label_history)
-                for label in set(label_history)
-            }
-            json_data["confidence"] = label_distribution
+            label_distribution = df['label'].value_counts(normalize=True).to_dict()
 
             # print the last data in the terminal
             print(json_data)
+            print(label_distribution.to_string(header=["Label", "Proportion"], index=True))
+            json_data["confidence"] = label_distribution
 
             # broadcast the last data to webpage
             await websocket_manager.broadcast_message(json.dumps(json_data))
