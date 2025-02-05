@@ -134,6 +134,7 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         
     X = np.array(all_windows)  # shape: (total_segments, window_size, num_channels)
     # Min-max normalize each channel independently
+    #should split the data into train and test here, due to Training and testing data should be normalized separately
     try:
         channel_min = X.min(axis=(0, 1), keepdims=True)  # shape: (1, 1, num_channels)
     except Exception as e:
