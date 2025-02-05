@@ -3,6 +3,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import MinMaxScaler
+from utils.process import add_features
 import glob
 
 
@@ -30,13 +31,15 @@ def train_model(data):
             "gyroscope_z",
         ]
     ]
+
     min_max_scaler = MinMaxScaler()
     arr_scaled = min_max_scaler.fit_transform(X)
     X = pd.DataFrame(arr_scaled, columns=X.columns)
+    X = add_features(X)
 
-    for col in X.columns:
-        X[col + "_avg"] = X[col].rolling(window=20).mean()
-        X[col + "_std"] = X[col].rolling(window=20).mean()
+    # for col in X.columns:
+    #     X[col + "_avg"] = X[col].rolling(window=20).mean()
+    #     X[col + "_std"] = X[col].rolling(window=20).mean()
     y = data["label"]
 
     # Split data into training/test sets
@@ -56,7 +59,9 @@ def train_model(data):
 
 
 def predict(model, input_df):
-    return model.predict(input_data)
+    df = add_features(input_df)
+    # use last row as input for prediction
+    return model.predict(df[-1])
 
 
 if __name__ == "__main__":
