@@ -1,6 +1,7 @@
 import os
 import json
 from datetime import datetime
+import numpy as np
 
 import pandas as pd
 import uvicorn
@@ -57,15 +58,20 @@ def load_model():
     print("Loading model...")
     data = load_data()
     print("Training model...")
-    model = train_model(data)
+    model, scaler = train_model(data)
     print("Model loaded successfully")
-    return model
+    return model, scaler
 
 
-def predict_label(model=None, data=None):
+def predict_label(model=None, scaler=None, data=None):
     # you should modify this to return the label
     if model is not None:
-        label = model.predict(data)
+        scaled_data = scaler.transform(np.array(data).reshape(1, -1))
+        transformed_data = np.concatenate(
+            [scaled_data, scaled_data, scaled_data], axis=None
+        ).reshape(1, -1)
+        print(transformed_data)
+        label = predict(model, transformed_data)[0]
         return label
     return 0
 
@@ -93,7 +99,7 @@ class WebSocketManager:
 
 
 websocket_manager = WebSocketManager()
-model = load_model()
+model, scaler = load_model()
 
 
 @app.get("/")
@@ -117,6 +123,8 @@ async def collect_data(label: str):
 async def websocket_endpoint(websocket: WebSocket):
     global current_label
     await websocket_manager.connect(websocket)
+    label_history = []
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -140,8 +148,21 @@ async def websocket_endpoint(websocket: WebSocket):
             Right now it only return 0.
             You need to modify the predict_label function to return the true label
             """
-            label = predict_label(model, raw_data)
+            label = predict_label(model, scaler, raw_data)
             json_data["label"] = current_label or label
+
+            n = 50
+            # Store the last n labels
+            label_history.append(label)
+            if len(label_history) > 50:
+                label_history.pop(0)
+
+            # Calculate the distribution of the last 50 labels
+            label_distribution = {
+                label: label_history.count(label) / len(label_history)
+                for label in set(label_history)
+            }
+            json_data["confidence"] = label_distribution
 
             # print the last data in the terminal
             print(json_data)

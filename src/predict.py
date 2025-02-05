@@ -2,12 +2,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 import glob
 
 
 def load_data():
     # Get list of all CSV files in the directory
-    csv_files = glob.glob("*.csv")
+    csv_files = glob.glob("data/*.csv")
 
     # Read and concatenate all CSV files
     data_frames = [pd.read_csv(file) for file in csv_files]
@@ -29,6 +30,13 @@ def train_model(data):
             "gyroscope_z",
         ]
     ]
+    min_max_scaler = MinMaxScaler()
+    arr_scaled = min_max_scaler.fit_transform(X)
+    X = pd.DataFrame(arr_scaled, columns=X.columns)
+
+    for col in X.columns:
+        X[col + "_avg"] = X[col].rolling(window=20).mean()
+        X[col + "_std"] = X[col].rolling(window=20).mean()
     y = data["label"]
 
     # Split data into training/test sets
@@ -44,7 +52,7 @@ def train_model(data):
     y_pred = clf.predict(X_test)
     print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
 
-    return clf
+    return clf, min_max_scaler
 
 
 def predict(model, input_data):
