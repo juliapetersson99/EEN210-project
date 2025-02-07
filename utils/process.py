@@ -13,6 +13,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.preprocessing import StandardScaler
 
 def split_dataframe_into_sliding_windows(df, window_size):
  
@@ -66,28 +67,7 @@ def low_pass_filter(data_frame, cutoff=3, fs=100, order=3):
     
     return filtered_data
 
-def add_features(data_frame):
-    data_types = ['acceleration', 'gyroscope']
-    dimensions = ['x', 'y', 'z']
-    for data_type in data_types:
-        for dimension in dimensions:
-            column_name = f"{data_type}_{dimension}"
-            data = data_frame[column_name]
-            data_frame[f"{column_name}_mean"] = data.mean()
-            data_frame[f"{column_name}_std"] = data.std()
-            data_frame[f"{column_name}_min"] = data.min()
-            data_frame[f"{column_name}_max"] = data.max()
-            data_frame[f"{column_name}_median"] = data.median()
-        
-        data_frame[f"{data_type}_magnitude"] = np.sqrt(
-            data_frame[f"{data_type}_x"] ** 2 +
-            data_frame[f"{data_type}_y"] ** 2 +
-            data_frame[f"{data_type}_z"] ** 2
-        )
-        data = data_frame[f"{data_type}_magnitude_std"] =   data_frame[f"{data_type}_magnitude"].std()
 
-    return data_frame
-    
 
 def segment_file(df, sensor_columns, window_size, overlap):
 
@@ -110,6 +90,32 @@ def segment_file(df, sensor_columns, window_size, overlap):
     
     return file_windows, file_labels
 
+
+def add_features(data_frame, rolling_size):
+    data_types = ['acceleration', 'gyroscope']
+    dimensions = ['x', 'y', 'z']
+    output = dict()
+    columns = set(data_frame.columns)
+    for data_type in data_types:
+        for dimension in dimensions:
+            column_name = f"{data_type}_{dimension}"
+            data = data_frame[column_name]
+
+            data_frame[f"{column_name}_mean"] = data.rolling(window=rolling_size).mean()
+            data_frame[f"{column_name}_max"] = data.rolling(window=rolling_size).max()
+            data_frame[f"{column_name}_min"] = data.rolling(window=rolling_size).min()
+            data_frame[f"{column_name}_std"] = data.rolling(window=rolling_size).std()
+
+        data_frame[f"{data_type}_magnitude"] = np.sqrt(
+            data_frame[f"{data_type}_x"] ** 2 +
+            data_frame[f"{data_type}_y"] ** 2 +
+            data_frame[f"{data_type}_z"] ** 2
+        )
+        # output[f"{data_type}_magnitude_std"] = data_frame[f"{data_type}_magnitude"].std()
+    addedColumns = set(data_frame.columns) - columns
+    return data_frame, list(addedColumns)
+
+
 def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overlap=0.5):
     csv_files = glob.glob(os.path.join(data_folder, '*.csv'))
     sensor_columns = ['acceleration_x', 'acceleration_y', 'acceleration_z',
@@ -118,16 +124,26 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
     window_size = int(window_duration_sec * fs)
     all_windows = []
     all_labels = []
-    for file in csv_files:
+
+    dfs = [pd.read_csv(file) for file in csv_files]
+
+    scaler = StandardScaler()
+    scaler.fit(pd.concat(dfs)[sensor_columns])
+    print("TEST")
+    for file, df in zip(csv_files, dfs):
         print(f"Loading {file}")
-        df = pd.read_csv(file)
+        df = df.copy()# warnings otherwise to allocate to the for-loop coopy obhect
 
         # Sort by timestamp if needed
         df = add_missing_labels(df)
         df = df[df['label'] != 'none']
 
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.loc[:, 'timestamp'] = pd.to_datetime(df['timestamp'])
 
+        df[sensor_columns] = scaler.transform(df[sensor_columns])
+
+        df, statistic_columns = add_features(df, window_size)
+        df = df[window_size-1:]
 
         time_diffs = df['timestamp'].diff()
 
@@ -140,13 +156,13 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         print(f"The average frequency is approximately {frequency:.2f} Hz")
 
         print(f"Loaded {len(df)} samples")
-        low_pass_filter(df[sensor_columns], cutoff=3, fs=fs, order=3)
-        print("Applied low-pass filter")
+        # low_pass_filter(df[sensor_columns], cutoff=3, fs=fs, order=3)
+        # print("Applied low-pass filter")
         
 
         # Segment this file into windows
         file_windows, file_labels = segment_file(
-            df, sensor_columns, window_size, overlap
+            df, sensor_columns + statistic_columns, window_size, overlap
         )
         print(f"Segmented into {len(file_windows)} windows")
 
@@ -154,30 +170,14 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         all_labels.extend(file_labels)
         
     X = np.array(all_windows)  # shape: (total_segments, window_size, num_channels)
-    # Min-max normalize each channel independently
-    #should split the data into train and test here, due to Training and testing data should be normalized separately
-    try:
-        channel_min = X.min(axis=(0, 1), keepdims=True)  # shape: (1, 1, num_channels)
-    except Exception as e:
-        print(e)
-        print(X)
-    channel_max = X.max(axis=(0, 1), keepdims=True)  # shape: (1, 1, num_channels)
-    channel_range = channel_max - channel_min
-    channel_range[channel_range == 0] = 1e-8
-    X_norm = (X - channel_min) / channel_range
-    norm_min = X_norm.min(axis=(0, 1))
-    norm_max = X_norm.max(axis=(0, 1))
-
-    print("After normalization:")
-    for idx, col in enumerate(sensor_columns):
-        print(f"{col}: min = {norm_min[idx]:.4f}, max = {norm_max[idx]:.4f}")
-
-
     y = np.array(all_labels)
-    return X_norm, y
+
+    return X, y
 
         
     
+
+
 def encode_labels(labels):
     unique_labels = sorted(set(labels))
     label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}

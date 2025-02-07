@@ -1,0 +1,101 @@
+<html>
+
+<head>
+    <title>Fall detection</title>
+    <style>
+        /* Add some CSS for styling the scrollable area */
+        #messages {
+            overflow-y: scroll;
+            height: 90vh;
+            /* Limit the height of the scrollable area */
+            width: 60vw;
+            /* Limit the height of the scrollable area */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Real-time data collection</h1>
+    <button id="closeButton">Close Connection</button>
+    <div id="buttons"></div>
+
+    <div id="current_state">
+
+    </div>
+
+    <ul id="messages">
+    </ul>
+    <script>
+        // Change Ip address based on your current wifi ip address
+        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
+        ws.onopen = function (event) {
+            console.log("WebSocket state:", ws.readyState);  // This will log "OPEN"
+        };
+        ws.onmessage = function (event) {
+            console.log("Received data:", event.data);
+            var messages = document.getElementById('messages');
+            var message = document.createElement('li');
+            var content = document.createTextNode(event.data);
+            message.appendChild(content);
+            messages.appendChild(message);
+            messages.scrollTop = messages.scrollHeight;
+
+
+            try {
+                const data = JSON.parse(event.data);
+                if (data.label) {
+                    document.getElementById('current_state').innerHTML = `
+                        <h2>Current Activity:</h2>
+                        <h3>${data.label}</h3>
+                    `;
+                }
+            } catch (e) {
+                console.log("Not a prediction message");
+            }
+        };
+
+        close = function () {
+            // ws.close();
+            console.log("Connection Closed");
+        };
+
+        // Add onclose event handler
+        ws.onclose = function (event) {
+            console.log("WebSocket closed:", event);
+        };
+
+        var closeButton = document.getElementById('closeButton');
+        closeButton.addEventListener('click', function () {
+            // Call the close function when the button is clicked
+            close();
+        });
+
+        const labels = "falling,walking,running,sitting,standing,laying,recover".split(",");
+        const buttonsContainer = document.getElementById('buttons');
+
+        labels.forEach(label => {
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'activity';
+            radio.value = label;
+            radio.id = label;
+
+            const labelElement = document.createElement('label');
+            labelElement.htmlFor = label;
+            labelElement.textContent = label;
+
+            radio.addEventListener('change', () => {
+                fetch('http://172.20.10.3:8000/collect/' + label);
+            });
+
+            buttonsContainer.appendChild(radio);
+            buttonsContainer.appendChild(labelElement);
+            buttonsContainer.appendChild(document.createElement('br'));
+        });
+
+    </script>
+
+
+</body>
+
+</html>
