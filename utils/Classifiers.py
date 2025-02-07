@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from  sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 
 
 
@@ -86,7 +87,8 @@ class LSTMClassifier(nn.Module):
 
         # Create Datasets and DataLoaders
         train_dataset = SensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        #If your data represents sequences (like time series or text), shuffling only changes the order in which different sequences are presented to the model
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
         
         if validation_data is not None:
             X_val, y_val = validation_data
@@ -247,7 +249,7 @@ class SensorDataset(Dataset):
 
 
 
-class SVMClassifier:
+class SupportVectorMachine:
     """
     SVM-based classifier supporting:
       - __init__: constructor
@@ -270,7 +272,7 @@ class SVMClassifier:
         return accuracy 
     
 
-class RandomForestClassifier:
+class RandomForest:
     """
     RandomForest-based classifier supporting:
       - __init__: constructor

@@ -69,26 +69,51 @@ def low_pass_filter(data_frame, cutoff=3, fs=100, order=3):
 
 
 
-def segment_file(df, sensor_columns, window_size, overlap):
+def segment_file(df, sensor_columns, window_size, overlap, format='values'):
 
     step = int(window_size * (1 - overlap))
     file_windows = []
     file_labels = []
-    data_matrix = df[sensor_columns].values  # shape: (num_samples, num_channels)
-    
-    # Slide over the data in steps, discarding any incomplete tail
-    for start in range(0, len(df) - window_size + 1, step):
-        end = start + window_size
-        segment = data_matrix[start:end, :]  # shape: (window_size, num_channels)
+
+    if(format == 'values'):
+        data_matrix = df[sensor_columns].values  # shape: (num_samples, num_channels)
         
-        # Determine the mode label in this window
-        window_labels = df['label'].iloc[start:end]
-        mode_label = window_labels.mode()[0]
+        # Slide over the data in steps, discarding any incomplete tail
+        for start in range(0, len(df) - window_size + 1, step):
+            end = start + window_size
+            segment = data_matrix[start:end, :]  # shape: (window_size, num_channels)
+            
+            # Determine the mode label in this window
+            window_labels = df['label'].iloc[start:end]
+            mode_label = window_labels.mode()[0]
+            
+            file_windows.append(segment)
+            file_labels.append(mode_label)
+
+
         
-        file_windows.append(segment)
-        file_labels.append(mode_label)
-    
-    return file_windows, file_labels
+        return file_windows, file_labels
+    else:
+        data_matrix = df[sensor_columns]  # shape: (num_samples, num_channels)
+        #print(data_matrix)
+        # Slide over the data in steps, discarding any incomplete tail
+        for start in range(0, len(df) - window_size + 1, step):
+            end = start + window_size
+            segment = data_matrix.iloc[start:end] # shape: (window_size, num_channels)
+            
+            # Determine the mode label in this window
+
+            window_labels = df['label'].iloc[start:end]
+            mode_label = window_labels.mode()[0]
+            
+            file_windows.append(segment)
+            file_labels.append(mode_label)
+
+
+        
+        return file_windows, file_labels
+
+
 
 
 def add_features(data_frame, rolling_size):
@@ -116,6 +141,34 @@ def add_features(data_frame, rolling_size):
     return data_frame, list(addedColumns)
 
 
+def get_window_statistics(data_windos):
+    data_types = ['acceleration', 'gyroscope']
+    dimensions = ['x', 'y', 'z']
+    output = dict()
+    for data_type in data_types:
+        for dimension in dimensions:
+            column_name = f"{data_type}_{dimension}"
+            data = data_windos[column_name]
+
+            output[f"{column_name}_mean"] = data.mean()
+            output[f"{column_name}_max"] = data.max()   
+            output[f"{column_name}_min"] = data.min()
+            output[f"{column_name}_std"] = data.std()
+            output[f"{column_name}_median"] = data.median()
+            #output[f"{column_name}_kurtosis"] = data.kurtosis()
+            #output[f"{column_name}_skewness"] = data.skew()
+        magnitude = np.sqrt(
+            data_windos[f"{data_type}_x"] ** 2 +
+            data_windos[f"{data_type}_y"] ** 2 +
+            data_windos[f"{data_type}_z"] ** 2
+        )
+        output[f"{data_type}_magnitude"] = magnitude.mean()
+        output[f"{data_type}_magnitude_std"] = magnitude.std()
+
+    
+    return output
+
+
 def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overlap=0.5):
     csv_files = glob.glob(os.path.join(data_folder, '*.csv'))
     sensor_columns = ['acceleration_x', 'acceleration_y', 'acceleration_z',
@@ -129,7 +182,6 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
 
     scaler = StandardScaler()
     scaler.fit(pd.concat(dfs)[sensor_columns])
-    print("TEST")
     for file, df in zip(csv_files, dfs):
         print(f"Loading {file}")
         df = df.copy()# warnings otherwise to allocate to the for-loop coopy obhect
@@ -141,6 +193,7 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         df.loc[:, 'timestamp'] = pd.to_datetime(df['timestamp'])
 
         df[sensor_columns] = scaler.transform(df[sensor_columns])
+    
 
         df, statistic_columns = add_features(df, window_size)
         df = df[window_size-1:]
@@ -166,6 +219,7 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         )
         print(f"Segmented into {len(file_windows)} windows")
 
+        
         all_windows.extend(file_windows)
         all_labels.extend(file_labels)
         
@@ -175,6 +229,64 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
     return X, y
 
         
+ 
+def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=60, overlap=0.5):
+    csv_files = glob.glob(os.path.join(data_folder, '*.csv'))
+    sensor_columns = ['acceleration_x', 'acceleration_y', 'acceleration_z',
+                      'gyroscope_x', 'gyroscope_y', 'gyroscope_z']
+    
+    window_size = int(window_duration_sec * fs)
+    all_windows = []
+    all_labels = []
+
+    dfs = [pd.read_csv(file) for file in csv_files]
+
+    for file, df in zip(csv_files, dfs):
+        print(f"Loading {file}")
+        df = df.copy()# warnings otherwise to allocate to the for-loop coopy obhect
+
+        # Sort by timestamp if needed
+        df = add_missing_labels(df)
+        df = df[df['label'] != 'none']
+
+        df.loc[:, 'timestamp'] = pd.to_datetime(df['timestamp'])
+
+        time_diffs = df['timestamp'].diff()
+
+        # Calculate the average time difference in seconds
+        average_time_diff_seconds = time_diffs.dt.total_seconds().mean()
+
+        # Calculate the frequency
+        frequency = 1 / average_time_diff_seconds
+
+        print(f"The average frequency is approximately {frequency:.2f} Hz")
+
+        print(f"Loaded {len(df)} samples")
+        # low_pass_filter(df[sensor_columns], cutoff=3, fs=fs, order=3)
+        # print("Applied low-pass filter")
+        
+
+        # Segment this file into windows
+        file_windows, file_labels = segment_file(
+            df, sensor_columns, window_size, overlap, format='dataframe'
+        )
+        print(f"Segmented into {len(file_windows)} windows")
+        for window in file_windows:
+            window_stats = get_window_statistics(window)
+            all_windows.append(window_stats)
+
+        all_labels.extend(file_labels)
+    print(all_windows)
+    keys = all_windows[0].keys()  # Assumes all dicts have the same keys.
+    data = [[d[k] for k in keys] for d in all_windows]
+
+    X = np.array(data)  # shape: (total_segments,  num_channels)
+    y = np.array(all_labels)
+
+    return X, y
+
+        
+ 
     
 
 
