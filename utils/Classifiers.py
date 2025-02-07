@@ -6,7 +6,7 @@ import numpy as np
 from  sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 
-
+from sklearn.metrics import confusion_matrix
 
 class LSTMClassifier(nn.Module):
     """
@@ -293,3 +293,33 @@ class RandomForest:
         preds = self.predict(X)
         accuracy = np.mean(preds == y)
         return accuracy
+    
+
+def get_confusion_matrix(model, X, y, label_mapping=None):
+    """
+    Computes and returns the confusion matrix for a given model.
+
+    Args:
+        model: A classifier with a predict method.
+        X (ndarray): Test data features.
+        y (ndarray): True labels (integers).
+        label_mapping (dict, optional): A mapping from integer labels to class names.
+                                        For example: {0: 'Class A', 1: 'Class B'}.
+                                        If provided, the confusion matrix will use the keys
+                                        in the order they appear in the mapping.
+
+    Returns:
+        cm (ndarray): Confusion matrix as a NumPy array.
+    """
+    # Generate predictions
+    y_pred = model.predict(X)
+    print(y_pred)
+    
+    # If label_mapping is provided, enforce the order of labels based on its keys.
+    if label_mapping is not None:
+        labels = list(label_mapping.keys())
+        cm = confusion_matrix(y, y_pred, labels=labels)
+    else:
+        cm = confusion_matrix(y, y_pred)
+    
+    return cm

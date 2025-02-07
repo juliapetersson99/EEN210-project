@@ -276,7 +276,7 @@ def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=
             all_windows.append(window_stats)
 
         all_labels.extend(file_labels)
-    print(all_windows)
+
     keys = all_windows[0].keys()  # Assumes all dicts have the same keys.
     data = [[d[k] for k in keys] for d in all_windows]
 
