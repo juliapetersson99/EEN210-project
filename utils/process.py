@@ -69,11 +69,12 @@ def low_pass_filter(data_frame, cutoff=3, fs=100, order=3):
 
 
 
-def segment_file(df, sensor_columns, window_size, overlap, format='values'):
+def segment_file(df, sensor_columns, window_size, overlap, format='values', labeling_mode = 'mode'):    
 
     step = int(window_size * (1 - overlap))
     file_windows = []
     file_labels = []
+
 
     if(format == 'values'):
         data_matrix = df[sensor_columns].values  # shape: (num_samples, num_channels)
@@ -83,12 +84,21 @@ def segment_file(df, sensor_columns, window_size, overlap, format='values'):
             end = start + window_size
             segment = data_matrix[start:end, :]  # shape: (window_size, num_channels)
             
-            # Determine the mode label in this window
-            window_labels = df['label'].iloc[start:end]
-            mode_label = window_labels.mode()[0]
+            if(labeling_mode == 'mode'):
+                window_labels = df['label'].iloc[start:end]
+                label_window = window_labels.mode()[0]
+            else:
+                window_labels = df['label'].iloc[start:end]
+                label_window = window_labels.iloc[-1]
+                #print(f'window_labels: {window_labels}')
+                #print(f'label: {label_window}')
+
+
+     
+
             
             file_windows.append(segment)
-            file_labels.append(mode_label)
+            file_labels.append(label_window)
 
 
         
@@ -103,11 +113,18 @@ def segment_file(df, sensor_columns, window_size, overlap, format='values'):
             
             # Determine the mode label in this window
 
-            window_labels = df['label'].iloc[start:end]
-            mode_label = window_labels.mode()[0]
+                        # Determine the mode label in this window
+            if(labeling_mode == 'mode'):
+                window_labels = df['label'].iloc[start:end]
+                label_window = window_labels.mode()[0]
+            else:
+                window_labels = df['label'].iloc[start:end]
+                label_window = window_labels.iloc[-1]
+                #print(f'window_labels: {window_labels}')
+                #print(f'label: {label_window}')
             
             file_windows.append(segment)
-            file_labels.append(mode_label)
+            file_labels.append(label_window)
 
 
         
@@ -117,6 +134,8 @@ def segment_file(df, sensor_columns, window_size, overlap, format='values'):
 
 
 def add_features(data_frame, rolling_size):
+
+    #add last two data points per window aswell
     data_types = ['acceleration', 'gyroscope']
     dimensions = ['x', 'y', 'z']
     output = dict()
@@ -130,6 +149,7 @@ def add_features(data_frame, rolling_size):
             data_frame[f"{column_name}_max"] = data.rolling(window=rolling_size).max()
             data_frame[f"{column_name}_min"] = data.rolling(window=rolling_size).min()
             data_frame[f"{column_name}_std"] = data.rolling(window=rolling_size).std()
+            data_frame[f"{column_name}_median"] = data.rolling(window=rolling_size).median()
 
         data_frame[f"{data_type}_magnitude"] = np.sqrt(
             data_frame[f"{data_type}_x"] ** 2 +
@@ -157,6 +177,8 @@ def get_window_statistics(data_windos):
             output[f"{column_name}_median"] = data.median()
             #output[f"{column_name}_kurtosis"] = data.kurtosis()
             #output[f"{column_name}_skewness"] = data.skew()
+            #for x in range(1,3):
+             #   output[f"{column_name}_last_{str(x)}"] = data.iloc[-x] 
         magnitude = np.sqrt(
             data_windos[f"{data_type}_x"] ** 2 +
             data_windos[f"{data_type}_y"] ** 2 +
@@ -222,7 +244,6 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
         
         all_windows.extend(file_windows)
         all_labels.extend(file_labels)
-        
     X = np.array(all_windows)  # shape: (total_segments, window_size, num_channels)
     y = np.array(all_labels)
 
@@ -230,7 +251,7 @@ def load_and_preprocess_data(data_folder, window_duration_sec=1.5, fs=60, overla
 
         
  
-def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=60, overlap=0.5):
+def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=60, overlap=0.5, labeling_mode = 'mode'):
     csv_files = glob.glob(os.path.join(data_folder, '*.csv'))
     sensor_columns = ['acceleration_x', 'acceleration_y', 'acceleration_z',
                       'gyroscope_x', 'gyroscope_y', 'gyroscope_z']
@@ -265,10 +286,9 @@ def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=
         # low_pass_filter(df[sensor_columns], cutoff=3, fs=fs, order=3)
         # print("Applied low-pass filter")
         
-
         # Segment this file into windows
         file_windows, file_labels = segment_file(
-            df, sensor_columns, window_size, overlap, format='dataframe'
+            df, sensor_columns, window_size, overlap, format='dataframe', labeling_mode = labeling_mode
         )
         print(f"Segmented into {len(file_windows)} windows")
         for window in file_windows:
@@ -276,7 +296,7 @@ def load_and_preprocess_static_picture(data_folder, window_duration_sec=1.5, fs=
             all_windows.append(window_stats)
 
         all_labels.extend(file_labels)
-
+    #print(window_stats)
     keys = all_windows[0].keys()  # Assumes all dicts have the same keys.
     data = [[d[k] for k in keys] for d in all_windows]
 

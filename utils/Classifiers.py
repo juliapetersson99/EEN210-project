@@ -295,7 +295,7 @@ class RandomForest:
         return accuracy
     
 
-def get_confusion_matrix(model, X, y, label_mapping=None):
+def get_confusion_matrix(y, y_pred, label_mapping=None, normalize=True):
     """
     Computes and returns the confusion matrix for a given model.
 
@@ -304,22 +304,24 @@ def get_confusion_matrix(model, X, y, label_mapping=None):
         X (ndarray): Test data features.
         y (ndarray): True labels (integers).
         label_mapping (dict, optional): A mapping from integer labels to class names.
-                                        For example: {0: 'Class A', 1: 'Class B'}.
-                                        If provided, the confusion matrix will use the keys
-                                        in the order they appear in the mapping.
+        normalize (bool): If True, returns percentages instead of raw counts.
 
     Returns:
-        cm (ndarray): Confusion matrix as a NumPy array.
+        cm (ndarray): Confusion matrix as a NumPy array (percentages if normalize=True).
     """
     # Generate predictions
-    y_pred = model.predict(X)
-    print(y_pred)
     
-    # If label_mapping is provided, enforce the order of labels based on its keys.
+    # If label_mapping is provided, enforce the order of labels based on its keys
+    
     if label_mapping is not None:
         labels = list(label_mapping.keys())
         cm = confusion_matrix(y, y_pred, labels=labels)
     else:
         cm = confusion_matrix(y, y_pred)
     
+    print(cm)
+
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
+        
     return cm
