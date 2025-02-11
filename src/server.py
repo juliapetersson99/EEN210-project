@@ -2,14 +2,14 @@ import os
 import json
 from datetime import datetime
 import numpy as np
-
+import joblib
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
-from predict import load_data, train_model, predict
+from predict import add_features, load_data, train_model, predict
 
 app = FastAPI()
 # Enable CORS for all origins
@@ -56,23 +56,18 @@ data_processor = DataProcessor()
 def load_model():
     # you should modify this function to return your model
     print("Loading model...")
-    data = load_data()
-    print("Training model...")
-    model, scaler = train_model(data)
+    # data = load_data()
+    # print("Training model...")
+    # model, scaler = train_model(data)
+    scaler, model = joblib.load("rf_model_with_scaler.joblib")
     print("Model loaded successfully")
     return model, scaler
 
 
-def predict_label(model=None, scaler=None, data=None):
+def predict_label(model=None, scaler=None, df=None):
     # you should modify this to return the label
     if model is not None:
-        scaled_data = scaler.transform(np.array(data).reshape(1, -1))
-        transformed_data = np.concatenate(
-            [scaled_data, scaled_data, scaled_data], axis=None
-        ).reshape(1, -1)
-        print(transformed_data)
-        label = predict(model, transformed_data)[0]
-        return label
+        return predict(model, scaler, df)
     return 0
 
 
@@ -138,21 +133,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Add time stamp to the last received data
             json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-
             data_processor.add_data(json_data)
             # this line save the recent 100 samples to the CSV file. you can change 100 if you want.
             if len(data_processor.data_buffer) >= 100:
                 data_processor.save_to_csv()
 
-            newDataDf = pd.DataFrame(json_data)
+            newDataDf = pd.DataFrame(json_data, index=[0])
             newDataDf["timestamp"] = pd.Timestamp.now()
-            newDataDf["label"] = None  
+            newDataDf["label"] = None
 
             if df is None:
-                df = newDataDf 
+                df = newDataDf
             else:
-                df = pd.concat([newDataDf, df], ignore_index=True)
-                if len(df) > window: 
+                df = pd.concat([df, newDataDf], ignore_index=True)
+                if len(df) > window:
                     df = df[1:]
 
             """  
@@ -163,14 +157,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
             label = predict_label(model, scaler, df)
             json_data["label"] = current_label or label
-            df.loc[-1, 'label'] = current_label or label
+            df.loc[df.index[-1], "label"] = current_label or label
 
             # Calculate the distribution of the last 50 labels
-            label_distribution = df['label'].value_counts(normalize=True).to_dict()
+            label_distribution = df["label"].value_counts(normalize=True).to_dict()
 
             # print the last data in the terminal
             print(json_data)
-            print(label_distribution.to_string(header=["Label", "Proportion"], index=True))
+            print(
+                label_distribution  # .to_string(header=["Label", "Proportion"], index=True)
+            )
             json_data["confidence"] = label_distribution
 
             # broadcast the last data to webpage

@@ -3,8 +3,39 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import MinMaxScaler
-from utils.process import add_features
 import glob
+from sklearn.metrics import confusion_matrix
+import numpy as np
+import joblib
+
+
+def add_features(data_frame, rolling_size):
+
+    # add last two data points per window aswell
+    data_types = ["acceleration", "gyroscope"]
+    dimensions = ["x", "y", "z"]
+    columns = set(data_frame.columns)
+    for data_type in data_types:
+        for dimension in dimensions:
+            column_name = f"{data_type}_{dimension}"
+            data = data_frame[column_name]
+
+            data_frame[f"{column_name}_mean"] = data.rolling(window=rolling_size).mean()
+            data_frame[f"{column_name}_max"] = data.rolling(window=rolling_size).max()
+            data_frame[f"{column_name}_min"] = data.rolling(window=rolling_size).min()
+            data_frame[f"{column_name}_std"] = data.rolling(window=rolling_size).std()
+            data_frame[f"{column_name}_median"] = data.rolling(
+                window=rolling_size
+            ).median()
+
+        data_frame[f"{data_type}_magnitude"] = np.sqrt(
+            data_frame[f"{data_type}_x"] ** 2
+            + data_frame[f"{data_type}_y"] ** 2
+            + data_frame[f"{data_type}_z"] ** 2
+        )
+        # output[f"{data_type}_magnitude_std"] = data_frame[f"{data_type}_magnitude"].std()
+    addedColumns = set(data_frame.columns) - columns
+    return data_frame, list(addedColumns)
 
 
 def load_data():
@@ -35,7 +66,9 @@ def train_model(data):
     min_max_scaler = MinMaxScaler()
     arr_scaled = min_max_scaler.fit_transform(X)
     X = pd.DataFrame(arr_scaled, columns=X.columns)
-    X = add_features(X)
+    X, new_features = add_features(X, 20)
+
+    print(X.head(10))
 
     # for col in X.columns:
     #     X[col + "_avg"] = X[col].rolling(window=20).mean()
@@ -55,18 +88,43 @@ def train_model(data):
     y_pred = clf.predict(X_test)
     print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
 
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    print(conf_matrix)
+
     return clf, min_max_scaler
 
 
-def predict(model, input_df):
-    df = add_features(input_df)
+def predict(model, scaler, input_df):
+    data = input_df[
+        [
+            "acceleration_x",
+            "acceleration_y",
+            "acceleration_z",
+            "gyroscope_x",
+            "gyroscope_y",
+            "gyroscope_z",
+        ]
+    ]
+    arr_scaled = scaler.transform(data)
+    X = pd.DataFrame(arr_scaled, columns=data.columns)
+    X, new_features = add_features(X, 20)
+
+    label = model.predict(X[-1:])[0]
+    return label
+    # df = add_features(input_df)
     # use last row as input for prediction
-    return model.predict(df[-1])
+    # return model.predict(df[-1])
+
+
+def load_model(name="rf_model_with_scaler"):
+    return joblib.load(f"{name}.joblib")
 
 
 if __name__ == "__main__":
     data = load_data()
-    model = train_model(data)
+    model, scaler = train_model(data)
+
+    joblib.dump((scaler, model), "rf_model_with_scaler.joblib")
     # Example usage of predict function
     # input_data = pd.DataFrame([...])  # Replace with actual input data
     # predictions = predict(model, input_data)
