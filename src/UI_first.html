@@ -22,17 +22,17 @@
     <button id="closeButton">Close Connection</button>
     <div id="buttons"></div>
     <div id="current_state"></div>
-    <ul id="messages"></ul>
+  
     
     <canvas id="accelChart"></canvas>
     <canvas id="gyroChart"></canvas>
-
+    <ul id="messages"></ul>
     <script>
-        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
+        var ws = new WebSocket("ws://172.20.10.9:8000/ws");
         var labelsArray = [];
         var accelData = { x: [], y: [], z: [] };
         var gyroData = { x: [], y: [], z: [] };
-        var maxDataPoints = 50;
+        var maxDataPoints = 250;
 
         var accelCtx = document.getElementById('accelChart').getContext('2d');
         var accelChart = new Chart(accelCtx, {
@@ -80,9 +80,9 @@
             var messages = document.getElementById('messages');
             var message = document.createElement('li');
             var content = document.createTextNode(event.data);
-            message.appendChild(content);
-            messages.appendChild(message);
-            messages.scrollTop = messages.scrollHeight;
+            //message.appendChild(content);
+            //messages.appendChild(message);
+            //messages.scrollTop = messages.scrollHeight;
 
             try {
                 const data = JSON.parse(event.data);
@@ -95,7 +95,7 @@
                     gyroData.y.push(data.gyroscope_y);
                     gyroData.z.push(data.gyroscope_z);
                     
-                    if (labelsArray.length > maxDataPoints) {
+                    /*if (labelsArray.length > maxDataPoints) {
                         labelsArray.shift();
                         accelData.x.shift();
                         accelData.y.shift();
@@ -104,12 +104,12 @@
                         gyroData.y.shift();
                         gyroData.z.shift();
                     }
-                    
+                    */
                     accelChart.update();
                     gyroChart.update();
                 }
                 if (data.label) {
-                    document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}</h3>`;
+                    document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}: ${Object.entries(data.confidence).toString()}</h3>`;
                 }
             } catch (e) {
                 console.log("Not a valid JSON message");
