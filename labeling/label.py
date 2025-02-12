@@ -1,4 +1,5 @@
 import dash
+from plotly import graph_objects as go
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pandas as pd
@@ -43,8 +44,15 @@ app.layout = html.Div(
                     ],
                     placeholder="Select a new label",
                 ),
+                html.Button("Download CSV", id="btn-download"),
+                dcc.Download(id="download-dataframe-csv"),
             ],
-            style={"textAlign": "center", "margin": "10px"},
+            style={
+                "textAlign": "center",
+                "margin": "10px",
+                "display": "grid",
+                "grid-template-columns": "1fr 100px",
+            },
         ),
         dcc.Graph(
             id="line-plot",
@@ -96,31 +104,25 @@ def standard_scale_features(df):
     return df
 
 
+# Global variables to store label blocks and edits
+label_blocks = pd.DataFrame()
+edits = pd.DataFrame()
+
+
 @app.callback(
-    Output("line-plot", "figure"),
-    [Input("upload-data", "contents"), Input("line-plot", "selectedData")],
-    [State("new-label", "value")],
+    Output("line-plot", "figure", allow_duplicate=True),
+    [Input("upload-data", "contents")],
+    prevent_initial_call=True,
 )
-def update_output(contents, relayout_data, new_label):
+def update_figure_on_upload(contents):
+    global label_blocks, edits
     if contents is None:
         return dash.no_update
 
     df = parse_contents(contents)
+    edits = df.copy()  # Store the original DataFrame for edits
+
     df = standard_scale_features(df)
-
-    print(relayout_data)
-
-    if (
-        new_label is not None
-        and relayout_data
-        and "range" in relayout_data
-        and relayout_data["range"].get("x") is not None
-    ):
-        start_time = relayout_data["range"]["x"][0]
-        end_time = relayout_data["range"]["x"][1]
-        df.loc[
-            (df["timestamp"] >= start_time) & (df["timestamp"] <= end_time), "label"
-        ] = new_label
 
     fig = px.line(
         df,
@@ -146,8 +148,10 @@ def update_output(contents, relayout_data, new_label):
             title="Timestamp", showgrid=True, gridwidth=1, gridcolor="LightGray"
         ),
     )
+
     if "label" in df.columns:
         label_blocks = create_label_blocks(df)
+        edits = df.copy()  # Store the original DataFrame for edits
         color_map = {
             label: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)]
             for i, label in enumerate(label_blocks["label"].unique())
@@ -165,6 +169,76 @@ def update_output(contents, relayout_data, new_label):
                 annotation=dict(textangle=-90),
             )
     return fig
+
+
+@app.callback(
+    Output("line-plot", "figure", allow_duplicate=True),
+    [Input("line-plot", "selectedData")],
+    [State("new-label", "value"), State("line-plot", "figure")],
+    prevent_initial_call=True,
+)
+def update_figure_on_label(selected_data, new_label, existing_figure):
+    global label_blocks, edits
+    if existing_figure is None or new_label is None or selected_data is None:
+        return dash.no_update
+
+    if "range" in selected_data and selected_data["range"].get("x") is not None:
+        start_time = selected_data["range"]["x"][0]
+        end_time = selected_data["range"]["x"][1]
+
+        # Add a row to the global label blocks
+        new_row = pd.DataFrame(
+            {"start_time": [start_time], "end_time": [end_time], "label": [new_label]}
+        )
+        label_blocks = pd.concat([label_blocks, new_row], ignore_index=True)
+
+        # Update the edits DataFrame
+        edits.loc[
+            (edits["timestamp"] >= start_time) & (edits["timestamp"] <= end_time),
+            "label",
+        ] = new_label
+
+    if "rangeslider" in existing_figure["layout"]["xaxis"]:
+        if "yaxis" in existing_figure["layout"]["xaxis"]["rangeslider"]:
+            del existing_figure["layout"]["xaxis"]["rangeslider"]["yaxis"]
+
+    # Reuse the existing figure
+    fig = go.Figure(existing_figure)
+
+    if not label_blocks.empty:
+        color_map = {
+            label: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)]
+            for i, label in enumerate(label_blocks["label"].unique())
+        }
+        fig.update_layout(shapes=[])
+
+        for _, row in label_blocks.iterrows():
+            fig.add_vrect(
+                x0=row["start_time"],
+                x1=row["end_time"],
+                fillcolor=color_map[row["label"]],
+                opacity=0.3,
+                layer="below",
+                line_width=0,
+                annotation_text=row["label"],
+                annotation_position="top left",
+                annotation=dict(textangle=-90),
+            )
+    return fig
+
+
+@app.callback(
+    Output("download-dataframe-csv", "data"),
+    [Input("btn-download", "n_clicks"), State("upload-data", "filename")],
+    prevent_initial_call=True,
+)
+def download_csv(n_clicks, filename):
+    global edits
+    if filename:
+        clean_filename = filename.rsplit(".", 1)[0] + "_clean.csv"
+    else:
+        clean_filename = "labeled_data_clean.csv"
+    return dcc.send_data_frame(edits.to_csv, clean_filename)
 
 
 @app.callback(Output("new-label", "value"), [Input("new-label", "value")])
