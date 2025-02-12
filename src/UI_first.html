@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Fall Detection - Real-time Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        #messages {
+            overflow-y: scroll;
+            height: 90vh;
+            width: 60vw;
+        }
+        canvas {
+            width: 100% !important;
+            height: 400px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Real-time Data Collection</h1>
+    <button id="closeButton">Close Connection</button>
+    <div id="buttons"></div>
+    <div id="current_state"></div>
+    <ul id="messages"></ul>
+    
+    <canvas id="accelChart"></canvas>
+    <canvas id="gyroChart"></canvas>
+
+    <script>
+        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
+        var labelsArray = [];
+        var accelData = { x: [], y: [], z: [] };
+        var gyroData = { x: [], y: [], z: [] };
+        var maxDataPoints = 50;
+
+        var accelCtx = document.getElementById('accelChart').getContext('2d');
+        var accelChart = new Chart(accelCtx, {
+            type: 'line',
+            data: {
+                labels: labelsArray,
+                datasets: [
+                    { label: 'Acceleration X', data: accelData.x, borderColor: 'red', fill: false },
+                    { label: 'Acceleration Y', data: accelData.y, borderColor: 'green', fill: false },
+                    { label: 'Acceleration Z', data: accelData.z, borderColor: 'blue', fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Time' } },
+                    y: { title: { display: true, text: 'Acceleration' } }
+                }
+            }
+        });
+
+        var gyroCtx = document.getElementById('gyroChart').getContext('2d');
+        var gyroChart = new Chart(gyroCtx, {
+            type: 'line',
+            data: {
+                labels: labelsArray,
+                datasets: [
+                    { label: 'Gyroscope X', data: gyroData.x, borderColor: 'orange', fill: false },
+                    { label: 'Gyroscope Y', data: gyroData.y, borderColor: 'purple', fill: false },
+                    { label: 'Gyroscope Z', data: gyroData.z, borderColor: 'cyan', fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Time' } },
+                    y: { title: { display: true, text: 'Gyroscope' } }
+                }
+            }
+        });
+
+        ws.onmessage = function (event) {
+            console.log("Received data:", event.data);
+            
+            var messages = document.getElementById('messages');
+            var message = document.createElement('li');
+            var content = document.createTextNode(event.data);
+            message.appendChild(content);
+            messages.appendChild(message);
+            messages.scrollTop = messages.scrollHeight;
+
+            try {
+                const data = JSON.parse(event.data);
+                if (data.acceleration_x !== undefined) {
+                    labelsArray.push(new Date().toLocaleTimeString());
+                    accelData.x.push(data.acceleration_x);
+                    accelData.y.push(data.acceleration_y);
+                    accelData.z.push(data.acceleration_z);
+                    gyroData.x.push(data.gyroscope_x);
+                    gyroData.y.push(data.gyroscope_y);
+                    gyroData.z.push(data.gyroscope_z);
+                    
+                    if (labelsArray.length > maxDataPoints) {
+                        labelsArray.shift();
+                        accelData.x.shift();
+                        accelData.y.shift();
+                        accelData.z.shift();
+                        gyroData.x.shift();
+                        gyroData.y.shift();
+                        gyroData.z.shift();
+                    }
+                    
+                    accelChart.update();
+                    gyroChart.update();
+                }
+                if (data.label) {
+                    document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}</h3>`;
+                }
+            } catch (e) {
+                console.log("Not a valid JSON message");
+            }
+        };
+
+        document.getElementById('closeButton').addEventListener('click', function () {
+            ws.close();
+            console.log("Connection Closed");
+        });
+    </script>
+</body>
+</html>

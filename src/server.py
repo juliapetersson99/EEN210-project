@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 with open(
-    "./src/index.html", "r"
+    "./src/UI_first.html", "r"
 ) as f:  # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
     html = f.read()
 
