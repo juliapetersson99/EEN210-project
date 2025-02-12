@@ -8,6 +8,8 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 import joblib
 
+import tensorflow as tf  # Import TensorFlow
+
 
 def add_features(data_frame, rolling_size):
 
@@ -107,7 +109,7 @@ def predict(model, scaler, input_df):
     ]
     arr_scaled = scaler.transform(data)
     X = pd.DataFrame(arr_scaled, columns=data.columns)
-    X, new_features = add_features(X, 20)
+    X, new_features = add_features(X, 60)
 
     label = model.predict(X[-1:])[0]
     return label
@@ -120,6 +122,30 @@ def load_model(name="rf_model_with_scaler"):
     return joblib.load(f"{name}.joblib")
 
 
+def load_tf_model(model_path):
+    return tf.keras.models.load_model(model_path)
+
+
+def predict_tf_model(model, scaler, input_df):
+    data = input_df[
+        [
+            "acceleration_x",
+            "acceleration_y",
+            "acceleration_z",
+            "gyroscope_x",
+            "gyroscope_y",
+            "gyroscope_z",
+        ]
+    ]
+    arr_scaled = scaler.transform(data)
+    X = pd.DataFrame(arr_scaled, columns=data.columns)
+    X, new_features = add_features(X, 50)
+
+    X = X[-1:].values.reshape(1, -1, X.shape[1])  # Reshape for LSTM or similar models
+    label = model.predict(X)
+    return label.argmax(axis=1)[0]  # Assuming the model outputs probabilities
+
+
 if __name__ == "__main__":
     data = load_data()
     model, scaler = train_model(data)
@@ -129,3 +155,8 @@ if __name__ == "__main__":
     # input_data = pd.DataFrame([...])  # Replace with actual input data
     # predictions = predict(model, input_data)
     # print(predictions)
+
+    # Example usage of TensorFlow model
+    # tf_model = load_tf_model("path_to_tf_model")
+    # tf_predictions = predict_tf_model(tf_model, scaler, input_data)
+    # print(tf_predictions)
