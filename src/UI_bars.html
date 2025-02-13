@@ -1,0 +1,139 @@
+<html>
+
+<head>
+    <title>Fall Detection - Real-time Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        #messages {
+            overflow-y: scroll;
+            height: 90vh;
+            width: 60vw;
+        }
+        canvas {
+            width: 100% !important;
+            height: 400px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Real-time Data Collection</h1>
+    <button id="closeButton">Close Connection</button>
+    <div id="buttons"></div>
+    <div id="current_state"></div>
+    
+    <canvas id="accelChart"></canvas>
+    <canvas id="gyroChart"></canvas>
+    <canvas id="confidenceChart"></canvas>
+    <ul id="messages"></ul>
+    
+    <script>
+        var ws = new WebSocket("ws://172.20.10.9:8000/ws");
+        var labelsArray = [];
+        var accelData = { x: [], y: [], z: [] };
+        var gyroData = { x: [], y: [], z: [] };
+        var maxDataPoints = 250;
+
+        var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
+        var confidenceData = new Array(confidenceLabels.length).fill(0);
+
+        var accelCtx = document.getElementById('accelChart').getContext('2d');
+        var accelChart = new Chart(accelCtx, {
+            type: 'line',
+            data: {
+                labels: labelsArray,
+                datasets: [
+                    { label: 'Acceleration X', data: accelData.x, borderColor: 'red', fill: false },
+                    { label: 'Acceleration Y', data: accelData.y, borderColor: 'green', fill: false },
+                    { label: 'Acceleration Z', data: accelData.z, borderColor: 'blue', fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Time' } },
+                    y: { title: { display: true, text: 'Acceleration' } }
+                }
+            }
+        });
+
+        var gyroCtx = document.getElementById('gyroChart').getContext('2d');
+        var gyroChart = new Chart(gyroCtx, {
+            type: 'line',
+            data: {
+                labels: labelsArray,
+                datasets: [
+                    { label: 'Gyroscope X', data: gyroData.x, borderColor: 'orange', fill: false },
+                    { label: 'Gyroscope Y', data: gyroData.y, borderColor: 'purple', fill: false },
+                    { label: 'Gyroscope Z', data: gyroData.z, borderColor: 'cyan', fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Time' } },
+                    y: { title: { display: true, text: 'Gyroscope' } }
+                }
+            }
+        });
+
+        var confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+        var confidenceChart = new Chart(confidenceCtx, {
+            type: 'bar',
+            data: {
+                labels: confidenceLabels,
+                datasets: [{
+                    label: 'Confidence Level (%)',
+                    data: confidenceData,
+                    backgroundColor: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan']
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { title: { display: true, text: 'Confidence Level (%)' }, beginAtZero: true, max: 100 }
+                }
+            }
+        });
+
+        ws.onmessage = function (event) {
+            console.log("Received data:", event.data);
+            
+            try {
+                const data = JSON.parse(event.data);
+                if (data.acceleration_x !== undefined) {
+                    labelsArray.push(new Date().toLocaleTimeString());
+                    accelData.x.push(data.acceleration_x);
+                    accelData.y.push(data.acceleration_y);
+                    accelData.z.push(data.acceleration_z);
+                    gyroData.x.push(data.gyroscope_x);
+                    gyroData.y.push(data.gyroscope_y);
+                    gyroData.z.push(data.gyroscope_z);
+                    
+                    accelChart.update();
+                    gyroChart.update();
+                }
+                if (data.label && data.confidence) {
+                    document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}: ${Object.entries(data.confidence).map(([key, value]) => `${key}: ${(value * 100).toFixed(2)}%`).join(', ')}</h3>`;
+                    
+                    confidenceData.fill(0);
+                    confidenceLabels.forEach((label, index) => {
+                        if (data.confidence[label] !== undefined) {
+                            confidenceData[index] = data.confidence[label] * 100;
+                        }
+                    });
+                    confidenceChart.update();
+                }
+            } catch (e) {
+                console.log("Not a valid JSON message");
+            }
+        };
+
+        document.getElementById('closeButton').addEventListener('click', function () {
+            ws.close();
+            console.log("Connection Closed");
+        });
+    </script>
+</body>
+</html>
+
