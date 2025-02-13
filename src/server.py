@@ -120,6 +120,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket_manager.connect(websocket)
     df = None
     window = 20
+    send_interval = 5  # Define the interval for sending data
+    total_measurements = 0  # Initialize a counter
 
     try:
         while True:
@@ -159,18 +161,23 @@ async def websocket_endpoint(websocket: WebSocket):
             json_data["label"] = current_label or label
             df.loc[df.index[-1], "label"] = current_label or label
 
-            # Calculate the distribution of the last 50 labels
-            label_distribution = df["label"].value_counts(normalize=True).to_dict()
+            # Increment the counter
+            total_measurements += 1
 
-            # print the last data in the terminal
-            print(json_data)
-            print(
-                label_distribution  # .to_string(header=["Label", "Proportion"], index=True)
-            )
-            json_data["confidence"] = label_distribution
+            # Only broadcast the data every send_interval times
+            if total_measurements % send_interval == 0:
+                # Calculate the distribution of the last 50 labels
+                label_distribution = df["label"].value_counts(normalize=True).to_dict()
 
-            # broadcast the last data to webpage
-            await websocket_manager.broadcast_message(json.dumps(json_data))
+                # print the last data in the terminal
+                print(json_data)
+                print(
+                    label_distribution  # .to_string(header=["Label", "Proportion"], index=True)
+                )
+                json_data["confidence"] = label_distribution
+
+                # broadcast the last data to webpage
+                await websocket_manager.broadcast_message(json.dumps(json_data))
 
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)

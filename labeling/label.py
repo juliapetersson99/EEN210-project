@@ -238,7 +238,7 @@ def download_csv(n_clicks, filename):
         clean_filename = filename.rsplit(".", 1)[0] + "_clean.csv"
     else:
         clean_filename = "labeled_data_clean.csv"
-    return dcc.send_data_frame(edits.to_csv, clean_filename)
+        return dcc.send_data_frame(edits.to_csv, clean_filename, index=False)
 
 
 @app.callback(Output("new-label", "value"), [Input("new-label", "value")])
