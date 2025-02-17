@@ -41,6 +41,7 @@ app.layout = html.Div(
                         {"label": "Standing", "value": "standing"},
                         {"label": "Laying", "value": "laying"},
                         {"label": "Recover", "value": "recover"},
+                        {"label": "Delete Label", "value": "delete"},
                     ],
                     placeholder="Select a new label",
                 ),
@@ -105,7 +106,7 @@ def standard_scale_features(df):
 
 
 # Global variables to store label blocks and edits
-label_blocks = pd.DataFrame()
+edit_blocks = pd.DataFrame()
 edits = pd.DataFrame()
 
 
@@ -115,7 +116,8 @@ edits = pd.DataFrame()
     prevent_initial_call=True,
 )
 def update_figure_on_upload(contents):
-    global label_blocks, edits
+    global edits, edit_blocks
+    edit_blocks = pd.DataFrame()
     if contents is None:
         return dash.no_update
 
@@ -178,7 +180,7 @@ def update_figure_on_upload(contents):
     prevent_initial_call=True,
 )
 def update_figure_on_label(selected_data, new_label, existing_figure):
-    global label_blocks, edits
+    global edit_blocks, edits
     if existing_figure is None or new_label is None or selected_data is None:
         return dash.no_update
 
@@ -186,17 +188,28 @@ def update_figure_on_label(selected_data, new_label, existing_figure):
         start_time = selected_data["range"]["x"][0]
         end_time = selected_data["range"]["x"][1]
 
-        # Add a row to the global label blocks
-        new_row = pd.DataFrame(
-            {"start_time": [start_time], "end_time": [end_time], "label": [new_label]}
-        )
-        label_blocks = pd.concat([label_blocks, new_row], ignore_index=True)
+        if new_label == "delete":
+            # Remove the label from the edits DataFrame
+            edits.loc[
+                (edits["timestamp"] >= start_time) & (edits["timestamp"] <= end_time),
+                "label",
+            ] = None
+        else:
+            # Add a row to the global label blocks
+            new_row = pd.DataFrame(
+                {
+                    "start_time": [start_time],
+                    "end_time": [end_time],
+                    "label": [new_label],
+                }
+            )
+            edit_blocks = pd.concat([edit_blocks, new_row], ignore_index=True)
 
-        # Update the edits DataFrame
-        edits.loc[
-            (edits["timestamp"] >= start_time) & (edits["timestamp"] <= end_time),
-            "label",
-        ] = new_label
+            # Update the edits DataFrame
+            edits.loc[
+                (edits["timestamp"] >= start_time) & (edits["timestamp"] <= end_time),
+                "label",
+            ] = new_label
 
     if "rangeslider" in existing_figure["layout"]["xaxis"]:
         if "yaxis" in existing_figure["layout"]["xaxis"]["rangeslider"]:
@@ -205,14 +218,14 @@ def update_figure_on_label(selected_data, new_label, existing_figure):
     # Reuse the existing figure
     fig = go.Figure(existing_figure)
 
-    if not label_blocks.empty:
+    if not edit_blocks.empty:
         color_map = {
             label: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)]
-            for i, label in enumerate(label_blocks["label"].unique())
+            for i, label in enumerate(edit_blocks["label"].unique())
         }
         fig.update_layout(shapes=[])
 
-        for _, row in label_blocks.iterrows():
+        for _, row in edit_blocks.iterrows():
             fig.add_vrect(
                 x0=row["start_time"],
                 x1=row["end_time"],
@@ -234,11 +247,20 @@ def update_figure_on_label(selected_data, new_label, existing_figure):
 )
 def download_csv(n_clicks, filename):
     global edits
+
+    # Remove sections where label is None for at least 10 rows
+    edits["label_block"] = (
+        edits["label"].notnull() != edits["label"].notnull().shift()
+    ).cumsum()
+    label_block_counts = edits.groupby("label_block")["label"].transform("count")
+    edits = edits[~((edits["label"].isnull()) & (label_block_counts >= 10))]
+    edits = edits.drop(columns=["label_block"])
+
     if filename:
         clean_filename = filename.rsplit(".", 1)[0] + "_clean.csv"
     else:
         clean_filename = "labeled_data_clean.csv"
-        return dcc.send_data_frame(edits.to_csv, clean_filename, index=False)
+    return dcc.send_data_frame(edits.to_csv, clean_filename, index=False)
 
 
 @app.callback(Output("new-label", "value"), [Input("new-label", "value")])
