@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi import WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
 from predict import add_features, load_data, train_model, predict
+import time
 
 app = FastAPI()
 # Enable CORS for all origins
@@ -22,7 +23,7 @@ app.add_middleware(
 )
 
 with open(
-    "./src/UI_first.html", "r"
+    "./src/UI_bars.html", "r"
 ) as f:  # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
     html = f.read()
 
@@ -67,7 +68,7 @@ def load_model():
 def predict_label(model=None, scaler=None, df=None):
     # you should modify this to return the label
     if model is not None:
-        return predict(model, scaler, df)
+        return predict(model, scaler, df, window=50)
     return 0
 
 
@@ -119,13 +120,14 @@ async def websocket_endpoint(websocket: WebSocket):
     global current_label
     await websocket_manager.connect(websocket)
     df = None
-    window = 20
-    send_interval = 5  # Define the interval for sending data
+    window = 50
+    send_interval = 15  # Define the interval for sending data
     total_measurements = 0  # Initialize a counter
 
     try:
         while True:
             data = await websocket.receive_text()
+            start_time = time.time()  # Start timing
 
             # Broadcast the incoming data to all connected clients
             json_data = json.loads(data)
@@ -149,7 +151,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 df = newDataDf
             else:
                 # find the most common in the previous window
-                newDataDf["prev_label"] = df["label"].mode().values[0]
+                if total_measurements % 50 == 0:
+                    newDataDf["prev_label"] = df["label"].mode().values[0]
                 df = pd.concat([df, newDataDf], ignore_index=True)
                 if len(df) > window:
                     df = df[1:]
@@ -178,6 +181,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     label_distribution  # .to_string(header=["Label", "Proportion"], index=True)
                 )
                 json_data["confidence"] = label_distribution
+
+                end_time = time.time()  # End timing
+                json_data["processing_time"] = end_time - start_time  # Add processing time to the data
+                print(f"Processing time: {json_data['processing_time']:.3f} seconds")
 
                 # broadcast the last data to webpage
                 await websocket_manager.broadcast_message(json.dumps(json_data))

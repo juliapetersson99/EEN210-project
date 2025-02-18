@@ -31,8 +31,7 @@ def encode_prev_labels(data_frame):
     for cat in classes:
         if cat not in encoded_labels.columns:
             encoded_labels[cat] = False
-    print(encoded_labels)
-    # Drop the original 'prev_label' column and join the encoded labels
+        # Drop the original 'prev_label' column and join the encoded labels
     data_frame = data_frame.drop("prev_label", axis=1).join(encoded_labels[classes])
     return data_frame
 
@@ -79,7 +78,7 @@ def add_features(data_frame, rolling_size):
 
 def load_data():
     # Get list of all CSV files in the directory
-    csv_files = glob.glob("data/*.csv")
+    csv_files = glob.glob("clean_data/*.csv")
 
     # Read and concatenate all CSV files
     data_frames = [pd.read_csv(file) for file in csv_files]

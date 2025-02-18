@@ -28,7 +28,7 @@
     <ul id="messages"></ul>
     
     <script>
-        var ws = new WebSocket("ws://172.20.10.9:8000/ws");
+        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
         var labelsArray = [];
         var accelData = { x: [], y: [], z: [] };
         var gyroData = { x: [], y: [], z: [] };
@@ -110,8 +110,8 @@
                     gyroData.y.push(data.gyroscope_y);
                     gyroData.z.push(data.gyroscope_z);
                     
-                    accelChart.update();
-                    gyroChart.update();
+                    accelChart.update(0);
+                    gyroChart.update(0);
                 }
                 if (data.label && data.confidence) {
                     document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}: ${Object.entries(data.confidence).map(([key, value]) => `${key}: ${(value * 100).toFixed(2)}%`).join(', ')}</h3>`;
