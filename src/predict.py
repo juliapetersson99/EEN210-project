@@ -7,8 +7,34 @@ import glob
 from sklearn.metrics import confusion_matrix
 import numpy as np
 import joblib
+from scipy.stats import mode
 
-import tensorflow as tf  # Import TensorFlow
+# import tensorflow as tf  # Import TensorFlow
+
+
+def encode_prev_labels(data_frame):
+    # One-hot encode the 'prev_label' column
+    encoded_labels = pd.get_dummies(
+        data_frame["prev_label"],
+        dummy_na=True,
+    )
+    classes = [
+        "falling",
+        "walking",
+        "running",
+        "sitting",
+        "standing",
+        "laying",
+        "recover",
+    ]
+
+    for cat in classes:
+        if cat not in encoded_labels.columns:
+            encoded_labels[cat] = False
+    print(encoded_labels)
+    # Drop the original 'prev_label' column and join the encoded labels
+    data_frame = data_frame.drop("prev_label", axis=1).join(encoded_labels[classes])
+    return data_frame
 
 
 def add_features(data_frame, rolling_size):
@@ -36,6 +62,17 @@ def add_features(data_frame, rolling_size):
             + data_frame[f"{data_type}_z"] ** 2
         )
         # output[f"{data_type}_magnitude_std"] = data_frame[f"{data_type}_magnitude"].std()
+    if "prev_label" not in data_frame.columns and "label" in data_frame.columns:
+        label_cats = pd.Categorical(data_frame["label"])
+        data_frame["prev_label"] = (
+            pd.Series(label_cats.codes)
+            .rolling(window=rolling_size)
+            .apply(lambda x: mode(x)[0])
+        )
+        data_frame["prev_label"] = data_frame["prev_label"].map(
+            lambda x: label_cats.categories[int(x)] if pd.notna(x) else None
+        )
+
     addedColumns = set(data_frame.columns) - columns
     return data_frame, list(addedColumns)
 
@@ -52,7 +89,7 @@ def load_data():
     return data
 
 
-def train_model(data):
+def train_model(data, window=100):
     # Separate features (sensor data) and labels
     X = data[
         [
@@ -68,14 +105,22 @@ def train_model(data):
     min_max_scaler = MinMaxScaler()
     arr_scaled = min_max_scaler.fit_transform(X)
     X = pd.DataFrame(arr_scaled, columns=X.columns)
-    X, new_features = add_features(X, 20)
+
+    # Feature Engineering
+    X["label"] = pd.Categorical(data["label"])
+    X, new_features = add_features(X, window)
+    X = X.iloc[window:].drop("label", axis=1)
+    print(X.head(10))
+
+    if "prev_label" in X.columns:
+        X = encode_prev_labels(X)
 
     print(X.head(10))
 
     # for col in X.columns:
     #     X[col + "_avg"] = X[col].rolling(window=20).mean()
     #     X[col + "_std"] = X[col].rolling(window=20).mean()
-    y = data["label"]
+    y = data["label"][window:]
 
     # Split data into training/test sets
     X_train, X_test, y_train, y_test = train_test_split(
@@ -96,7 +141,7 @@ def train_model(data):
     return clf, min_max_scaler
 
 
-def predict(model, scaler, input_df):
+def predict(model, scaler, input_df, window=100):
     data = input_df[
         [
             "acceleration_x",
@@ -109,7 +154,12 @@ def predict(model, scaler, input_df):
     ]
     arr_scaled = scaler.transform(data)
     X = pd.DataFrame(arr_scaled, columns=data.columns)
-    X, new_features = add_features(X, 60)
+
+    X, new_features = add_features(X, window)
+
+    if "prev_label" in input_df.columns:
+        X["prev_label"] = input_df["prev_label"]
+        X = encode_prev_labels(X)
 
     label = model.predict(X[-1:])[0]
     return label

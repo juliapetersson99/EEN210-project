@@ -143,10 +143,13 @@ async def websocket_endpoint(websocket: WebSocket):
             newDataDf = pd.DataFrame(json_data, index=[0])
             newDataDf["timestamp"] = pd.Timestamp.now()
             newDataDf["label"] = None
+            newDataDf["prev_label"] = None
 
             if df is None:
                 df = newDataDf
             else:
+                # find the most common in the previous window
+                newDataDf["prev_label"] = df["label"].mode().values[0]
                 df = pd.concat([df, newDataDf], ignore_index=True)
                 if len(df) > window:
                     df = df[1:]
