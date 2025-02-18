@@ -12,6 +12,13 @@ from sklearn.preprocessing import MinMaxScaler
 # Initialize the Dash app
 app = dash.Dash(__name__)
 
+person_map = {
+    "Julia": "julia",
+    "Sara": "sara",
+    "Jakob": "jakob",
+    "Marten": "marten",
+}
+
 app.layout = html.Div(
     [
         dcc.Upload(
@@ -45,6 +52,13 @@ app.layout = html.Div(
                     ],
                     placeholder="Select a new label",
                 ),
+                dcc.Dropdown(
+                    id="person-select",
+                    options=[
+                        {"label": x[0], "value": x[1]} for x in person_map.items()
+                    ],
+                    placeholder="Person",
+                ),
                 html.Button("Download CSV", id="btn-download"),
                 dcc.Download(id="download-dataframe-csv"),
             ],
@@ -52,7 +66,7 @@ app.layout = html.Div(
                 "textAlign": "center",
                 "margin": "10px",
                 "display": "grid",
-                "grid-template-columns": "1fr 100px",
+                "grid-template-columns": "2fr 1fr 100px",
             },
         ),
         dcc.Graph(
@@ -69,17 +83,27 @@ def parse_contents(contents):
     content_type, content_string = contents.split(",")
     decoded = base64.b64decode(content_string)
     df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
     return df
 
 
-def create_label_blocks(df):
-    df = df.dropna(subset=["label"])
+def create_label_blocks(input):
+    # df = df.dropna(subset=["label"])
+    df = input.copy()
     df["prev_label"] = df["label"].shift(1)
     df["next_label"] = df["label"].shift(-1)
 
     label_blocks = df[
-        (df["label"] != df["prev_label"]) | (df["label"] != df["next_label"])
+        ((df["label"] != df["prev_label"]) | (df["label"] != df["next_label"]))
+        & pd.notnull(df["label"])
+        | pd.isnull(df["label"])
+        != pd.isnull(df["next_label"])
     ].copy()
+    label_blocks.iloc[0, label_blocks.columns.get_loc("timestamp")] = df[
+        "timestamp"
+    ].iloc[0]
     label_blocks["start_time"] = label_blocks["timestamp"]
     label_blocks["end_time"] = (
         label_blocks["timestamp"].shift(-1).fillna(df["timestamp"].iloc[-1])
@@ -87,6 +111,9 @@ def create_label_blocks(df):
 
     label_blocks = label_blocks[label_blocks["label"] != label_blocks["prev_label"]]
     label_blocks = label_blocks[["start_time", "end_time", "label"]]
+
+    label_blocks["start_time"] = pd.to_datetime(label_blocks["start_time"])
+    label_blocks["end_time"] = pd.to_datetime(label_blocks["end_time"])
 
     return label_blocks.reset_index(drop=True)
 
@@ -153,23 +180,25 @@ def update_figure_on_upload(contents):
 
     if "label" in df.columns:
         label_blocks = create_label_blocks(df)
+        print(label_blocks)
         edits = df.copy()  # Store the original DataFrame for edits
         color_map = {
             label: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)]
             for i, label in enumerate(label_blocks["label"].unique())
         }
         for _, row in label_blocks.iterrows():
-            fig.add_vrect(
-                x0=row["start_time"],
-                x1=row["end_time"],
-                fillcolor=color_map[row["label"]],
-                opacity=0.3,
-                layer="below",
-                line_width=0,
-                annotation_text=row["label"],
-                annotation_position="top left",
-                annotation=dict(textangle=-90),
-            )
+            if row["label"] is not None and not pd.isna(row["label"]):
+                fig.add_vrect(
+                    x0=row["start_time"],
+                    x1=row["end_time"],
+                    fillcolor=color_map[row["label"]],
+                    opacity=0.3,
+                    layer="below",
+                    line_width=0,
+                    annotation_text=row["label"],
+                    annotation_position="top left",
+                    annotation=dict(textangle=-90),
+                )
     return fig
 
 
@@ -242,30 +271,77 @@ def update_figure_on_label(selected_data, new_label, existing_figure):
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
-    [Input("btn-download", "n_clicks"), State("upload-data", "filename")],
+    [
+        Input("btn-download", "n_clicks"),
+        State("upload-data", "filename"),
+        State("person-select", "value"),
+    ],
     prevent_initial_call=True,
 )
-def download_csv(n_clicks, filename):
+def download_csv(n_clicks, filename, selected_person):
     global edits
 
-    # Remove sections where label is None for at least 10 rows
-    edits["label_block"] = (
-        edits["label"].notnull() != edits["label"].notnull().shift()
-    ).cumsum()
-    label_block_counts = edits.groupby("label_block")["label"].transform("count")
-    edits = edits[~((edits["label"].isnull()) & (label_block_counts >= 10))]
-    edits = edits.drop(columns=["label_block"])
+    export_df = edits.copy()
+    export_df["prev_label"] = None
+
+    label_blocks = create_label_blocks(edits)
+    prev_label = None
+
+    # Sort label_blocks by start_time
+    label_blocks = label_blocks.sort_values(by="start_time")
+
+    for _, row in label_blocks.iterrows():
+        start_time = row["start_time"]
+        end_time = row["end_time"]
+        label = row["label"]
+
+        if label is None or pd.isna(label):
+            duration = (end_time - start_time).total_seconds()
+            # remove longer sections with no label
+            if duration > 0.5:
+                export_df = export_df[
+                    ~(
+                        (export_df["timestamp"] >= start_time)
+                        & (export_df["timestamp"] <= end_time)
+                    )
+                ]
+        else:
+            # assign the previous label
+            export_df.loc[
+                (export_df["timestamp"] >= start_time)
+                & (export_df["timestamp"] <= end_time),
+                "prev_label",
+            ] = prev_label
+            prev_label = label
+
+    # Add the selected person column
+    if selected_person:
+        export_df["person"] = selected_person
 
     if filename:
         clean_filename = filename.rsplit(".", 1)[0] + "_clean.csv"
     else:
         clean_filename = "labeled_data_clean.csv"
-    return dcc.send_data_frame(edits.to_csv, clean_filename, index=False)
+    return dcc.send_data_frame(export_df.to_csv, clean_filename, index=False)
 
 
 @app.callback(Output("new-label", "value"), [Input("new-label", "value")])
 def update_label(new_label):
     return new_label
+
+
+@app.callback(
+    Output("person-select", "value"),
+    [Input("upload-data", "filename")],
+    prevent_initial_call=True,
+)
+def update_person_select(filename):
+    global person_map
+    if filename:
+        for person in person_map.values():
+            if person in filename.lower():
+                return person
+    return dash.no_update
 
 
 if __name__ == "__main__":
