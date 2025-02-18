@@ -72,6 +72,55 @@ def predict_label(model=None, scaler=None, df=None):
     return 0
 
 
+from collections import deque
+import math
+
+class RollingStats:
+    def __init__(self, window_size: int):
+        self.window_size = window_size
+        self.data_deque = deque()
+        self.sum = 0.0
+        self.sum_sq = 0.0
+
+    def update(self, new_value: float):
+        """
+        Add a new data point into the rolling window.
+        Remove the oldest data point if we're over capacity.
+        """
+        # Add new sample
+        self.data_deque.append(new_value)
+        self.sum += new_value
+        self.sum_sq += new_value * new_value
+
+        # Pop oldest if over window size
+        if len(self.data_deque) > self.window_size:
+            old_value = self.data_deque.popleft()
+            self.sum -= old_value
+            self.sum_sq -= old_value * old_value
+
+    def mean(self) -> float:
+        """
+        Returns the rolling mean of the current window.
+        """
+        current_size = len(self.data_deque)
+        if current_size == 0:
+            return 0.0
+        return self.sum / current_size
+
+    def variance(self) -> float:
+        """
+        Returns the rolling sample variance of the current window.
+        """
+        current_size = len(self.data_deque)
+        if current_size < 2:
+            return 0.0
+        # sample variance = (sum of x^2 - (sum of x)^2 / n ) / (n-1)
+        return (self.sum_sq - (self.sum * self.sum) / current_size) / (current_size - 1)
+
+    def std(self) -> float:
+        return math.sqrt(self.variance()) if len(self.data_deque) > 1 else 0.0 
+
+
 class WebSocketManager:
     def __init__(self):
         self.active_connections = set()
@@ -124,6 +173,23 @@ async def websocket_endpoint(websocket: WebSocket):
     send_interval = 15  # Define the interval for sending data
     total_measurements = 0  # Initialize a counter
 
+    window_size = 50
+
+    # Acceleration rolling stats (x, y, z, magnitude)
+    rolling_stats_ax = RollingStats(window)
+    rolling_stats_ay = RollingStats(window)
+    rolling_stats_az = RollingStats(window)
+    rolling_stats_am = RollingStats(window)  # acceleration magnitude
+
+    # Gyroscope rolling stats (x, y, z, magnitude)
+    rolling_stats_gx = RollingStats(window)
+    rolling_stats_gy = RollingStats(window)
+    rolling_stats_gz = RollingStats(window)
+    rolling_stats_gm = RollingStats(window)  # gyroscope magnitude
+
+
+    
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -136,16 +202,136 @@ async def websocket_endpoint(websocket: WebSocket):
             raw_data = list(json_data.values())
 
             # Add time stamp to the last received data
-            json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            data_processor.add_data(json_data)
+            #json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            #data_processor.add_data(json_data)
             # this line save the recent 100 samples to the CSV file. you can change 100 if you want.
-            if len(data_processor.data_buffer) >= 100:
-                data_processor.save_to_csv()
+            #if len(data_processor.data_buffer) >= 100:
+            #    data_processor.save_to_csv()
 
-            newDataDf = pd.DataFrame(json_data, index=[0])
-            newDataDf["timestamp"] = pd.Timestamp.now()
-            newDataDf["label"] = None
-            newDataDf["prev_label"] = None
+
+
+
+            # Extract raw sensor values
+            ax = float(json_data["acceleration_x"])
+            ay = float(json_data["acceleration_y"])
+            az = float(json_data["acceleration_z"])
+            gx = float(json_data["gyroscope_x"])
+            gy = float(json_data["gyroscope_y"])
+            gz = float(json_data["gyroscope_z"])
+
+            accel_magnitude = np.sqrt(ax**2 + ay**2 + az**2)
+            gyro_magnitude  = np.sqrt(gx**2 + gy**2 + gz**2)
+
+            # Update rolling stats (so we de not need to keep computing rolling average)
+            rolling_stats_ax.update(ax)
+            rolling_stats_ay.update(ay)
+            rolling_stats_az.update(az)
+            rolling_stats_am.update(accel_magnitude)
+
+            rolling_stats_gx.update(gx)
+            rolling_stats_gy.update(gy)
+            rolling_stats_gz.update(gz)
+            rolling_stats_gm.update(gyro_magnitude)
+
+
+            # Update each rolling stats object
+            ax_mean = rolling_stats_ax.mean()
+            ax_std  = rolling_stats_ax.std()
+            ay_mean = rolling_stats_ay.mean()
+            ay_std  = rolling_stats_ay.std()
+            az_mean = rolling_stats_az.mean()
+            az_std  = rolling_stats_az.std()
+            am_mean = rolling_stats_am.mean()
+            am_std  = rolling_stats_am.std()
+
+            gx_mean = rolling_stats_gx.mean()
+            gx_std  = rolling_stats_gx.std()
+            gy_mean = rolling_stats_gy.mean()
+            gy_std  = rolling_stats_gy.std()
+            gz_mean = rolling_stats_gz.mean()
+            gz_std  = rolling_stats_gz.std()
+            gm_mean = rolling_stats_gm.mean()
+            gm_std  = rolling_stats_gm.std()
+
+
+            # Now compute rolling means/stds
+            ax_mean = rolling_stats_ax.mean()
+            ax_std  = rolling_stats_ax.std()
+            
+            ay_mean = rolling_stats_ay.mean()
+            ay_std  = rolling_stats_ay.std()
+
+            az_mean = rolling_stats_az.mean()
+            az_std  = rolling_stats_az.std()
+
+            gx_mean = rolling_stats_gx.mean()
+            gx_std  = rolling_stats_gx.std()
+
+            gy_mean = rolling_stats_gy.mean()
+            gy_std  = rolling_stats_gy.std()
+
+            gz_mean = rolling_stats_gz.mean()
+            gz_std  = rolling_stats_gz.std()
+            feature_row = {
+                "accel_x": ax,
+                "accel_y": ay,
+                "accel_z": az,
+                "accel_mag": accel_magnitude,
+
+                "accel_x_mean": ax_mean,
+                "accel_x_std": ax_std,
+                "accel_y_mean": ay_mean,
+                "accel_y_std": ay_std,
+                "accel_z_mean": az_mean,
+                "accel_z_std": az_std,
+                "accel_mag_mean": am_mean,
+                "accel_mag_std": am_std,
+
+                "gyro_x": gx,
+                "gyro_y": gy,
+                "gyro_z": gz,
+                "gyro_mag": gyro_magnitude,
+
+                "gyro_x_mean": gx_mean,
+                "gyro_x_std": gx_std,
+                "gyro_y_mean": gy_mean,
+                "gyro_y_std": gy_std,
+                "gyro_z_mean": gz_mean,
+                "gyro_z_std": gz_std,
+                "gyro_mag_mean": gm_mean,
+                "gyro_mag_std": gm_std,
+
+            }
+
+            
+
+            # Add a timestamp
+
+
+
+            
+
+            #newDataDf = pd.DataFrame(json_data, index=[0])
+            #newDataDf["timestamp"] = pd.Timestamp.now()
+            #newDataDf["label"] = None
+            #newDataDf["prev_label"] = None
+
+            # Update rolling stats
+            
+
+
+
+        
+            # Optionally append to a DataFrame or directly feed into your model
+            feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
+            feature_df["timestamp"] = pd.Timestamp.now()
+            feature_df["label"] = None # Set to None if you don't have a label yet
+            feature_df["prev_label"] = None # Set to None if you don't have a label yet
+
+            # Example: let's define "label" either from a user or from a model prediction
+            # If you're collecting data for labeled training, you might have current_label set globally.
+            label = current_label or "unknown"
+
 
             if df is None:
                 df = newDataDf
