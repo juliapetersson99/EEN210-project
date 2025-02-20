@@ -322,8 +322,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
         
-            # Optionally append to a DataFrame or directly feed into your model
-            feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
+            #
+            #feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
+            feature_df = pd.DataFrame([feature_row])
             feature_df["timestamp"] = pd.Timestamp.now()
             feature_df["label"] = None # Set to None if you don't have a label yet
             feature_df["prev_label"] = None # Set to None if you don't have a label yet
@@ -334,12 +335,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
             if df is None:
-                df = newDataDf
+                df = feature_df
             else:
                 # find the most common in the previous window
                 if total_measurements % 50 == 0:
-                    newDataDf["prev_label"] = df["label"].mode().values[0]
-                df = pd.concat([df, newDataDf], ignore_index=True)
+                    feature_df["prev_label"] = df["label"].mode().values[0]
+                df = pd.concat([df, feature_df], ignore_index=True)
                 if len(df) > window:
                     df = df[1:]
 
