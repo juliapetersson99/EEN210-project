@@ -282,7 +282,7 @@ def download_csv(n_clicks, filename, selected_person):
     global edits
 
     export_df = edits.copy()
-    export_df["prev_label"] = None
+    export_df["prev_label_block"] = None
 
     label_blocks = create_label_blocks(edits)
     prev_label = None

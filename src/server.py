@@ -53,6 +53,10 @@ class DataProcessor:
 
 data_processor = DataProcessor()
 
+window = 100
+send_interval = 15  # Define the interval for sending data
+predict_interval = 2
+
 
 def load_model():
     # you should modify this function to return your model
@@ -66,14 +70,16 @@ def load_model():
 
 
 def predict_label(model=None, scaler=None, df=None):
+    global window
     # you should modify this to return the label
     if model is not None:
-        return predict(model, scaler, df, window=50)
+        return predict(model, scaler, df, window=window)
     return 0
 
 
 from collections import deque
 import math
+
 
 class RollingStats:
     def __init__(self, window_size: int):
@@ -118,7 +124,7 @@ class RollingStats:
         return (self.sum_sq - (self.sum * self.sum) / current_size) / (current_size - 1)
 
     def std(self) -> float:
-        return math.sqrt(self.variance()) if len(self.data_deque) > 1 else 0.0 
+        return math.sqrt(self.variance() + 0.0001) if len(self.data_deque) > 1 else 0.0
 
 
 class WebSocketManager:
@@ -166,14 +172,10 @@ async def collect_data(label: str):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    global current_label
+    global current_label, window, send_interval, predict_interval
     await websocket_manager.connect(websocket)
     df = None
-    window = 50
-    send_interval = 15  # Define the interval for sending data
     total_measurements = 0  # Initialize a counter
-
-    window_size = 50
 
     # Acceleration rolling stats (x, y, z, magnitude)
     rolling_stats_ax = RollingStats(window)
@@ -187,9 +189,6 @@ async def websocket_endpoint(websocket: WebSocket):
     rolling_stats_gz = RollingStats(window)
     rolling_stats_gm = RollingStats(window)  # gyroscope magnitude
 
-
-    
-
     try:
         while True:
             data = await websocket.receive_text()
@@ -202,14 +201,11 @@ async def websocket_endpoint(websocket: WebSocket):
             raw_data = list(json_data.values())
 
             # Add time stamp to the last received data
-            #json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            #data_processor.add_data(json_data)
+            # json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            # data_processor.add_data(json_data)
             # this line save the recent 100 samples to the CSV file. you can change 100 if you want.
-            #if len(data_processor.data_buffer) >= 100:
+            # if len(data_processor.data_buffer) >= 100:
             #    data_processor.save_to_csv()
-
-
-
 
             # Extract raw sensor values
             ax = float(json_data["acceleration_x"])
@@ -220,7 +216,7 @@ async def websocket_endpoint(websocket: WebSocket):
             gz = float(json_data["gyroscope_z"])
 
             accel_magnitude = np.sqrt(ax**2 + ay**2 + az**2)
-            gyro_magnitude  = np.sqrt(gx**2 + gy**2 + gz**2)
+            gyro_magnitude = np.sqrt(gx**2 + gy**2 + gz**2)
 
             # Update rolling stats (so we de not need to keep computing rolling average)
             rolling_stats_ax.update(ax)
@@ -233,106 +229,89 @@ async def websocket_endpoint(websocket: WebSocket):
             rolling_stats_gz.update(gz)
             rolling_stats_gm.update(gyro_magnitude)
 
-
             # Update each rolling stats object
             ax_mean = rolling_stats_ax.mean()
-            ax_std  = rolling_stats_ax.std()
+            ax_std = rolling_stats_ax.std()
             ay_mean = rolling_stats_ay.mean()
-            ay_std  = rolling_stats_ay.std()
+            ay_std = rolling_stats_ay.std()
             az_mean = rolling_stats_az.mean()
-            az_std  = rolling_stats_az.std()
+            az_std = rolling_stats_az.std()
             am_mean = rolling_stats_am.mean()
-            am_std  = rolling_stats_am.std()
+            am_std = rolling_stats_am.std()
 
             gx_mean = rolling_stats_gx.mean()
-            gx_std  = rolling_stats_gx.std()
+            gx_std = rolling_stats_gx.std()
             gy_mean = rolling_stats_gy.mean()
-            gy_std  = rolling_stats_gy.std()
+            gy_std = rolling_stats_gy.std()
             gz_mean = rolling_stats_gz.mean()
-            gz_std  = rolling_stats_gz.std()
+            gz_std = rolling_stats_gz.std()
             gm_mean = rolling_stats_gm.mean()
-            gm_std  = rolling_stats_gm.std()
-
+            gm_std = rolling_stats_gm.std()
 
             # Now compute rolling means/stds
             ax_mean = rolling_stats_ax.mean()
-            ax_std  = rolling_stats_ax.std()
-            
+            ax_std = rolling_stats_ax.std()
+
             ay_mean = rolling_stats_ay.mean()
-            ay_std  = rolling_stats_ay.std()
+            ay_std = rolling_stats_ay.std()
 
             az_mean = rolling_stats_az.mean()
-            az_std  = rolling_stats_az.std()
+            az_std = rolling_stats_az.std()
 
             gx_mean = rolling_stats_gx.mean()
-            gx_std  = rolling_stats_gx.std()
+            gx_std = rolling_stats_gx.std()
 
             gy_mean = rolling_stats_gy.mean()
-            gy_std  = rolling_stats_gy.std()
+            gy_std = rolling_stats_gy.std()
 
             gz_mean = rolling_stats_gz.mean()
-            gz_std  = rolling_stats_gz.std()
+            gz_std = rolling_stats_gz.std()
             feature_row = {
-                "accel_x": ax,
-                "accel_y": ay,
-                "accel_z": az,
-                "accel_mag": accel_magnitude,
-
-                "accel_x_mean": ax_mean,
-                "accel_x_std": ax_std,
-                "accel_y_mean": ay_mean,
-                "accel_y_std": ay_std,
-                "accel_z_mean": az_mean,
-                "accel_z_std": az_std,
-                "accel_mag_mean": am_mean,
-                "accel_mag_std": am_std,
-
-                "gyro_x": gx,
-                "gyro_y": gy,
-                "gyro_z": gz,
-                "gyro_mag": gyro_magnitude,
-
-                "gyro_x_mean": gx_mean,
-                "gyro_x_std": gx_std,
-                "gyro_y_mean": gy_mean,
-                "gyro_y_std": gy_std,
-                "gyro_z_mean": gz_mean,
-                "gyro_z_std": gz_std,
-                "gyro_mag_mean": gm_mean,
-                "gyro_mag_std": gm_std,
-
+                "acceleration_x": ax,
+                "acceleration_y": ay,
+                "acceleration_z": az,
+                "acceleration_magnitude": accel_magnitude,
+                "acceleration_x_mean": ax_mean,
+                "acceleration_x_std": ax_std,
+                "acceleration_y_mean": ay_mean,
+                "acceleration_y_std": ay_std,
+                "acceleration_z_mean": az_mean,
+                "acceleration_z_std": az_std,
+                # "acceleration_mag_mean": am_mean,
+                # "acceleration_mag_std": am_std,
+                "gyroscope_x": gx,
+                "gyroscope_y": gy,
+                "gyroscope_z": gz,
+                "gyroscope_magnitude": gyro_magnitude,
+                "gyroscope_x_mean": gx_mean,
+                "gyroscope_x_std": gx_std,
+                "gyroscope_y_mean": gy_mean,
+                "gyroscope_y_std": gy_std,
+                "gyroscope_z_mean": gz_mean,
+                "gyroscope_z_std": gz_std,
+                # "gyroscope_mag_mean": gm_mean,
+                # "gyroscope_mag_std": gm_std,
             }
-
-            
 
             # Add a timestamp
 
-
-
-            
-
-            #newDataDf = pd.DataFrame(json_data, index=[0])
-            #newDataDf["timestamp"] = pd.Timestamp.now()
-            #newDataDf["label"] = None
-            #newDataDf["prev_label"] = None
+            # newDataDf = pd.DataFrame(json_data, index=[0])
+            # newDataDf["timestamp"] = pd.Timestamp.now()
+            # newDataDf["label"] = None
+            # newDataDf["prev_label"] = None
 
             # Update rolling stats
-            
 
-
-
-        
             #
-            #feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
+            # feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
             feature_df = pd.DataFrame([feature_row])
             feature_df["timestamp"] = pd.Timestamp.now()
-            feature_df["label"] = None # Set to None if you don't have a label yet
-            feature_df["prev_label"] = None # Set to None if you don't have a label yet
+            feature_df["label"] = None  # Set to None if you don't have a label yet
+            feature_df["prev_label"] = None  # Set to None if you don't have a label yet
 
             # Example: let's define "label" either from a user or from a model prediction
             # If you're collecting data for labeled training, you might have current_label set globally.
             label = current_label or "unknown"
-
 
             if df is None:
                 df = feature_df
@@ -349,8 +328,11 @@ async def websocket_endpoint(websocket: WebSocket):
             Right now it only return 0.
             You need to modify the predict_label function to return the true label
             """
-
-            label = predict_label(model, scaler, df)
+            if total_measurements % predict_interval == 0:
+                label = predict_label(model, scaler, df)
+            else:
+                print(df)
+                label = df["label"].iloc[-2]  # take last label
             json_data["label"] = current_label or label
             df.loc[df.index[-1], "label"] = current_label or label
 
@@ -370,12 +352,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 json_data["confidence"] = label_distribution
 
                 end_time = time.time()  # End timing
-                json_data["processing_time"] = end_time - start_time  # Add processing time to the data
+                json_data["processing_time"] = (
+                    end_time - start_time
+                )  # Add processing time to the data
                 print(f"Processing time: {json_data['processing_time']:.3f} seconds")
 
                 # broadcast the last data to webpage
                 await websocket_manager.broadcast_message(json.dumps(json_data))
-
+            end_time = time.time()  # End timing
+            print(f"Processing time: {end_time-start_time:.3f} seconds")
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
 
