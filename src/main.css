@@ -1,0 +1,134 @@
+main {
+    display: grid;
+    gap: 1rem;
+    /* 3 columns across, 2 rows (header row + content row for the wave panel). */
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    padding: 1rem;
+    box-sizing: border-box;
+    min-height: 100vh; /* Fill the page vertically */
+  }
+  
+  .header-container {
+    grid-column: 1 / 4;
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 4px;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  /* Put the confidence section in the first column */
+  .confidence-section {
+    grid-column: 1 / 2;
+    padding: 1rem;
+  }
+
+  /* Put the info section in the second column */
+  .info-section {
+    grid-column: 2 / 3;
+    padding: 1rem;
+    border-radius: 4px;
+  }
+  .patient-box {
+    background-color: #ffffff;  /* or another color you prefer */
+    border: 1px solid #ccc;     /* thin gray border */
+    border-radius: 8px;         /* rounded corners */
+    padding: 1rem;              /* space inside the box */
+    margin-bottom: 1rem;        /* space below the box */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* subtle drop shadow */
+  }
+  
+  .patient-box h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .patient-box h4 {
+    margin: 0.5rem 0 0.25rem;
+  }
+  
+  .patient-box p {
+    margin: 0 0 0.5rem;
+  }
+
+  .history-section {
+    grid-column: 3 / 4;
+    background-color: #ffffff;
+    padding: 1rem;
+  }
+  
+  /* Wave panel row spans all 3 columns (1 to 4) */
+  .wave-panel {
+    grid-column: 1 / 4;
+    background-color: #f9f9f9;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    align-items: center;
+  }
+  
+
+  .alert-button {
+    background-color: red;
+    cursor: pointer;
+  }
+  
+  canvas {
+    width: 100% !important;
+    height: auto !important;
+    
+  }
+
+  .wave-panel canvas {
+    width: 90% !important;
+    max-height: 100px !important;
+    margin-top: 5px;
+  }
+  
+  .close_button button {
+    background: #fff;
+    border: none;
+    padding: 10px 20px;
+    display: inline-block;
+    font-size: 15px;
+    font-weight: 600;
+    width: 120px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transform: skew(-21deg);
+    position: relative; /* Added for proper pseudo-element positioning */
+  }
+  
+  .close_button span {
+    display: inline-block;
+    transform: skew(21deg);
+  }
+  
+  .close_button button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 100%;
+    left: 0;
+    background: rgb(20, 20, 20);
+    opacity: 0;
+    z-index: -1;
+    transition: all 0.5s;
+  }
+  
+  .close_button button:hover {
+    color: #fff;
+  }
+  
+  .close_button button:hover::before {
+    left: 0;
+    right: 0;
+    opacity: 1;
+  }

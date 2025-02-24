@@ -22,9 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open(
-    "./src/UI_bars.html", "r"
-) as f:  # Path is C:\Users\julia\OneDrive\Avslutade kurser\Skrivbord\VSCode-file\Fall_Detection_project
+current_dir = os.path.dirname(os.path.abspath(__file__))
+html_path = os.path.join(current_dir, "UI_bars.html")
+with open(html_path, "r") as f:
     html = f.read()
 
 
@@ -151,7 +151,14 @@ class WebSocketManager:
 
 websocket_manager = WebSocketManager()
 model, scaler = load_model()
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
+
+app.mount("/static", StaticFiles(directory=current_dir), name="static")
+@app.get("/main.css")
+async def get_css():
+    return FileResponse(os.path.join(current_dir, "main.css"))
 
 @app.get("/")
 async def get():
