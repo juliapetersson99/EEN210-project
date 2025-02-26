@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Fall Detection - Real-time Data</title>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
@@ -22,7 +21,7 @@
       
       <!-- Dashboard Header: 3 Columns -->
       <section class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Column 1: Patient Info -->
+        <!-- Column 1: Patien -->
         <div id="patient_card" class="bg-white shadow rounded-xl p-6">
           <h3 class="text-xl font-semibold text-gray-800 mb-4">Patient Card</h3>
           <div id="patient_info" class="space-y-2">
@@ -72,14 +71,14 @@
           </div>
         </div>
         
-        <!-- Column 3: History of States -->
+        <!-- Column 3: History, piechart -->
         <div class="bg-white shadow rounded-xl p-6">
           <h3 class="text-xl font-semibold text-gray-800">History</h3>
           <canvas id="pichart" class="mt-4"></canvas>
         </div>
       </section>
       
-      <!-- Lower Section: Accelerometer and Gyroscope Charts -->
+      <!-- Lower Section: CHARTS -->
       <section class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white shadow rounded-xl p-6">
           <canvas id="accelChart"></canvas>
@@ -92,7 +91,7 @@
     </div>
   </main>
 
-  <!-- JavaScript Section -->
+  
   <script>
     var ws = new WebSocket("ws://localhost:8000/ws");
     var labelsArray = [];
