@@ -1,139 +1,351 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>Fall Detection - Real-time Data</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        #messages {
-            overflow-y: scroll;
-            height: 90vh;
-            width: 60vw;
-        }
-        canvas {
-            width: 100% !important;
-            height: 400px !important;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Fall Detection - Real-time Data</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-gray-50">
+  <main class="py-24 sm:py-32">
+    <div class="mx-auto max-w-2xl px-6 lg:max-w-7xl lg:px-8">
+      
+      <!-- Main Header -->
+      <header class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">Real-time Data Collection</h1>
+        <button id="closeButton" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+          Close Connection
+        </button>
+      </header>
+      
+      <!-- Dashboard Header: 3 Columns -->
+      <section class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Column 1: Patien -->
+        <div id="patient_card" class="bg-white shadow rounded-xl p-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">Patient Card</h3>
+          <div id="patient_info" class="space-y-2">
+            <div>
+              <h4 class="font-medium text-gray-700">Patient Name:</h4>
+              <p class="text-gray-900">John Doe</p>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700">Patient ID:</h4>
+              <p class="text-gray-900">123456</p>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700">Age:</h4>
+              <p class="text-gray-900">65</p>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700">Address:</h4>
+              <p id="patient_address" class="text-gray-900">Not available</p>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700">Condition:</h4>
+              <p id="patient_condition" class="text-gray-900">Not available</p>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700">Current Medications:</h4>
+              <p id="patient_medications" class="text-gray-900">Not available</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Column 2: Vertical Stack (Confidence Chart, Current Activity, and Confidence) -->
+        <div class="space-y-6">
+          <!-- Confidence Chart Card -->
+          <div class="bg-white shadow rounded-xl p-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Confidence of Current Activity</h2>
+            <canvas id="confidenceChart" class="mt-4"></canvas>
+          </div>
+          <!-- Current Activity & Confidence Details Card -->
+          <div class="bg-white shadow rounded-xl p-6">
+            <h3 class="text-xl font-semibold text-gray-800">Current Activity:</h3>
+            <div id="current_state" class="mt-2 text-gray-900"></div>
+            <h3 class="mt-4 text-xl font-semibold text-gray-800">Confidence:</h3>
+            <div id="confidence_state" class="mt-2 text-gray-900"></div>
+            <button class="alert-button mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              Alert 112 (event call ambulance)
+            </button>
+          </div>
+        </div>
+        
+        <!-- Column 3: History, piechart -->
+        <div class="bg-white shadow rounded-xl p-6">
+          <h3 class="text-xl font-semibold text-gray-800">History</h3>
+          <canvas id="pichart" class="mt-4"></canvas>
+        </div>
+      </section>
+      
+      <!-- Lower Section: CHARTS -->
+      <section class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white shadow rounded-xl p-6">
+          <canvas id="accelChart"></canvas>
+        </div>
+        <div class="bg-white shadow rounded-xl p-6">
+          <canvas id="gyroChart"></canvas>
+        </div>
+      </section>
+      
+    </div>
+  </main>
 
-<body>
-    <h1>Real-time Data Collection</h1>
-    <button id="closeButton">Close Connection</button>
-    <div id="buttons"></div>
-    <div id="current_state"></div>
-    
-    <canvas id="accelChart"></canvas>
-    <canvas id="gyroChart"></canvas>
-    <canvas id="confidenceChart"></canvas>
-    <ul id="messages"></ul>
-    
-    <script>
-        var ws = new WebSocket("ws://172.20.10.3:8000/ws");
-        var labelsArray = [];
-        var accelData = { x: [], y: [], z: [] };
-        var gyroData = { x: [], y: [], z: [] };
-        var maxDataPoints = 250;
+  
+  <script>
+    var ws = new WebSocket("ws://localhost:8000/ws");
+    var labelsArray = [];
+    var accelData = { x: [], y: [], z: [] };
+    var gyroData = { x: [], y: [], z: [] };
+    var maxDataPoints = 250;
 
-        var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
-        var confidenceData = new Array(confidenceLabels.length).fill(0);
+    var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
+    var confidenceData = new Array(confidenceLabels.length).fill(0);
 
-        var accelCtx = document.getElementById('accelChart').getContext('2d');
-        var accelChart = new Chart(accelCtx, {
-            type: 'line',
-            data: {
-                labels: labelsArray,
-                datasets: [
-                    { label: 'Acceleration X', data: accelData.x, borderColor: 'red', fill: false },
-                    { label: 'Acceleration Y', data: accelData.y, borderColor: 'green', fill: false },
-                    { label: 'Acceleration Z', data: accelData.z, borderColor: 'blue', fill: false }
-                ]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: { title: { display: true, text: 'Time' } },
-                    y: { title: { display: true, text: 'Acceleration' } }
-                }
+    // Accelerometer Chart
+    var accelCtx = document.getElementById('accelChart').getContext('2d');
+    var accelChart = new Chart(accelCtx, {
+      type: 'line',
+      data: {
+        labels: labelsArray,
+        datasets: [
+          { label: 'Acceleration X', data: accelData.x, borderColor: 'red', fill: false },
+          { label: 'Acceleration Y', data: accelData.y, borderColor: 'green', fill: false },
+          { label: 'Acceleration Z', data: accelData.z, borderColor: 'blue', fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Time' } },
+          y: { title: { display: true, text: 'Acceleration' } }
+        }
+      }
+    });
+
+    // Gyroscope Chart
+    var gyroCtx = document.getElementById('gyroChart').getContext('2d');
+    var gyroChart = new Chart(gyroCtx, {
+      type: 'line',
+      data: {
+        labels: labelsArray,
+        datasets: [
+          { label: 'Gyroscope X', data: gyroData.x, borderColor: 'orange', fill: false },
+          { label: 'Gyroscope Y', data: gyroData.y, borderColor: 'purple', fill: false },
+          { label: 'Gyroscope Z', data: gyroData.z, borderColor: 'cyan', fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Time' } },
+          y: { title: { display: true, text: 'Gyroscope' } }
+        }
+      }
+    });
+
+    // Confidence Chart
+    var confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+    var confidenceChart = new Chart(confidenceCtx, {
+      type: 'bar',
+      data: {
+        labels: confidenceLabels,
+        datasets: [{
+          label: 'Confidence Level (%)',
+          data: confidenceData,
+          backgroundColor: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan']
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { title: { display: true, text: 'Confidence Level (%)' }, beginAtZero: true, max: 100 }
+        }
+      }
+    });
+
+    ws.onmessage = function (event) {
+      console.log("Received data:", event.data);
+      
+      try {
+        const data = JSON.parse(event.data);
+        if (data.acceleration_x !== undefined) {
+          labelsArray.push(new Date().toLocaleTimeString());
+          accelData.x.push(data.acceleration_x);
+          accelData.y.push(data.acceleration_y);
+          accelData.z.push(data.acceleration_z);
+          gyroData.x.push(data.gyroscope_x);
+          gyroData.y.push(data.gyroscope_y);
+          gyroData.z.push(data.gyroscope_z);
+          
+          accelChart.update(0);
+          gyroChart.update(0);
+        }
+        if (data.label && data.confidence) {
+          document.getElementById('current_state').innerHTML = `
+            <h2 class="text-lg font-semibold text-gray-800">Current Activity:</h2>
+            <h3 class="mt-2 text-gray-900">${data.label}: ${Object.entries(data.confidence)
+              .map(([key, value]) => `${key}: ${(value * 100).toFixed(2)}%`)
+              .join(', ')}</h3>`;
+          
+          confidenceData.fill(0);
+          confidenceLabels.forEach((label, index) => {
+            if (data.confidence[label] !== undefined) {
+              confidenceData[index] = data.confidence[label] * 100;
             }
-        });
+          });
+          confidenceChart.update();
+        }
+      } catch (e) {
+        console.log("Not a valid JSON message");
+      }
+    };
 
-        var gyroCtx = document.getElementById('gyroChart').getContext('2d');
-        var gyroChart = new Chart(gyroCtx, {
-            type: 'line',
-            data: {
-                labels: labelsArray,
-                datasets: [
-                    { label: 'Gyroscope X', data: gyroData.x, borderColor: 'orange', fill: false },
-                    { label: 'Gyroscope Y', data: gyroData.y, borderColor: 'purple', fill: false },
-                    { label: 'Gyroscope Z', data: gyroData.z, borderColor: 'cyan', fill: false }
-                ]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: { title: { display: true, text: 'Time' } },
-                    y: { title: { display: true, text: 'Gyroscope' } }
-                }
-            }
-        });
+    document.getElementById('closeButton').addEventListener('click', function () {
+      ws.close();
+      console.log("Connection Closed");
+    });
 
-        var confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
-        var confidenceChart = new Chart(confidenceCtx, {
-            type: 'bar',
-            data: {
-                labels: confidenceLabels,
-                datasets: [{
-                    label: 'Confidence Level (%)',
-                    data: confidenceData,
-                    backgroundColor: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan']
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { title: { display: true, text: 'Confidence Level (%)' }, beginAtZero: true, max: 100 }
-                }
-            }
+    // Patient data fetching functions (unchanged)
+    function fetchPatientData() {
+      const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+      let params = new URLSearchParams(window.location.search);
+      let patientId = params.get("patientId");
+      const url = `${fhirBaseUrl}/Patient/${patientId}`;
+      fetch(url, {
+        method: "GET",
+        headers: { "Accept": "application/fhir+json" }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(patientData => {
+          console.log("Patient Data:", patientData);
+          displayPatientData(patientData);
+        })
+        .catch(error => {
+          console.error("Failed to fetch patient data:", error);
         });
+    }
 
-        ws.onmessage = function (event) {
-            console.log("Received data:", event.data);
-            
-            try {
-                const data = JSON.parse(event.data);
-                if (data.acceleration_x !== undefined) {
-                    labelsArray.push(new Date().toLocaleTimeString());
-                    accelData.x.push(data.acceleration_x);
-                    accelData.y.push(data.acceleration_y);
-                    accelData.z.push(data.acceleration_z);
-                    gyroData.x.push(data.gyroscope_x);
-                    gyroData.y.push(data.gyroscope_y);
-                    gyroData.z.push(data.gyroscope_z);
-                    
-                    accelChart.update(0);
-                    gyroChart.update(0);
-                }
-                if (data.label && data.confidence) {
-                    document.getElementById('current_state').innerHTML = `<h2>Current Activity:</h2><h3>${data.label}: ${Object.entries(data.confidence).map(([key, value]) => `${key}: ${(value * 100).toFixed(2)}%`).join(', ')}</h3>`;
-                    
-                    confidenceData.fill(0);
-                    confidenceLabels.forEach((label, index) => {
-                        if (data.confidence[label] !== undefined) {
-                            confidenceData[index] = data.confidence[label] * 100;
-                        }
-                    });
-                    confidenceChart.update();
-                }
-            } catch (e) {
-                console.log("Not a valid JSON message");
-            }
-        };
+    function displayPatientData(patient) {
+      let patientName = "Unknown";
+      if (patient.name && patient.name.length > 0) {
+        const givenNames = patient.name[0].given ? patient.name[0].given.join(" ") : "";
+        const familyName = patient.name[0].family || "";
+        patientName = `${givenNames} ${familyName}`.trim();
+      }
+      const patientIdentifier = patient.id || "Unknown";
 
-        document.getElementById('closeButton').addEventListener('click', function () {
-            ws.close();
-            console.log("Connection Closed");
-        });
-    </script>
+      let age = "Unknown";
+      if (patient.birthDate) {
+        const birthDate = new Date(patient.birthDate);
+        const today = new Date();
+        age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+      }
+      
+      let addressStr = "Not available";
+      if (patient.address && patient.address.length > 0) {
+        const addr = patient.address[0];
+        addressStr = [addr.line ? addr.line.join(" ") : "", addr.city, addr.state, addr.postalCode, addr.country]
+                     .filter(Boolean).join(", ");
+      }
+      
+      const patientInfoDiv = document.getElementById("patient_info");
+      patientInfoDiv.innerHTML = `
+        <div>
+          <h4 class="font-medium text-gray-700">Patient Name:</h4>
+          <p class="text-gray-900">${patientName}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Patient ID:</h4>
+          <p class="text-gray-900">${patientIdentifier}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Age:</h4>
+          <p class="text-gray-900">${age}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Address:</h4>
+          <p id="patient_address" class="text-gray-900">${addressStr}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Condition:</h4>
+          <p id="patient_condition" class="text-gray-900">Loading...</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Current Medications:</h4>
+          <p id="patient_medications" class="text-gray-900">Loading...</p>
+        </div>
+      `;
+      fetchPatientConditions(patientIdentifier);
+      fetchPatientMedications(patientIdentifier);
+    }
+
+    function fetchPatientConditions(patientId) {
+      const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+      const url = `${fhirBaseUrl}/Condition?subject=${patientId}`;
+      fetch(url, {
+        method: "GET",
+        headers: { "Accept": "application/fhir+json" }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        let conditionText = "Not available";
+        if (data.entry && data.entry.length > 0) {
+          conditionText = data.entry.map(e => e.resource.code && e.resource.code.text)
+                                    .filter(Boolean).join(", ");
+        }
+        document.getElementById("patient_condition").textContent = conditionText || "Not available";
+      })
+      .catch(error => {
+        console.error("Failed to fetch patient conditions:", error);
+        document.getElementById("patient_condition").textContent = "Error loading conditions";
+      });
+    }
+
+    function fetchPatientMedications(patientId) {
+      const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+      const url = `${fhirBaseUrl}/MedicationStatement?subject=${patientId}`;
+      fetch(url, {
+        method: "GET",
+        headers: { "Accept": "application/fhir+json" }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        let medText = "Not available";
+        if (data.entry && data.entry.length > 0) {
+          medText = data.entry.map(e => {
+            const med = e.resource.medicationCodeableConcept;
+            return med && med.text ? med.text : null;
+          }).filter(Boolean).join(", ");
+        }
+        document.getElementById("patient_medications").textContent = medText || "Not available";
+      })
+      .catch(error => {
+        console.error("Failed to fetch patient medications:", error);
+        document.getElementById("patient_medications").textContent = "Error loading medications";
+      });
+    }
+
+    fetchPatientData();
+  </script>
 </body>
 </html>
-

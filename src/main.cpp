@@ -10,7 +10,7 @@ uint8_t readRegister(uint8_t reg) {
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(reg);
   Wire.endTransmission(false); 
-  Wire.requestFrom(MPU6050_ADDR, (uint8_t));
+  Wire.requestFrom(MPU6050_ADDR, (uint8_t)1);
   if (Wire.available()) {
     return Wire.read();
   }
@@ -35,7 +35,7 @@ const int GYRO_CONFIG = 0x1B;
 const int ACCEL_CONFIG = 0x1C;
 
 // Replace with your WebSocket server address
-const char *webSocketServer = "172.20.10.3";
+const char *webSocketServer = "172.20.10.9";
 
 const int webSocketPort = 8000;
 const char *webSocketPath = "/";
