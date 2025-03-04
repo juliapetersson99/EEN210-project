@@ -79,12 +79,115 @@ app.layout = html.Div(
 )
 
 
+def calculate_position_velocity(df):
+    """Calculate position and velocity from acceleration data using integration."""
+    if "acceleration_y" not in df.columns:
+        return df
+
+    # Ensure timestamp is in datetime format
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    # Set initial position based on labels if available
+    initial_position = 0.0
+    if "label" in df.columns:
+        position_mapping = {
+            "standing": 1,
+            "walking": 1,
+            "running": 1,
+            "sitting": 0,
+            "falling": -1,
+            "laying": -1,
+            "recovering": -1,
+        }
+        first_valid_label = (
+            df["label"].dropna().iloc[0] if not df["label"].dropna().empty else None
+        )
+        initial_position = (
+            position_mapping.get(str(first_valid_label).lower(), 0)
+            if first_valid_label
+            else 0
+        )
+        print(f"Initial position: {initial_position}")
+
+    # Calculate time differences as a series (not stored in df)
+    time_diffs = df["timestamp"].diff().dt.total_seconds()
+    # Handle first value
+    time_diffs.iloc[0] = time_diffs.iloc[1:].median() if len(df) > 1 else 0.01
+
+    # Apply a moving average filter to smooth out the acceleration noise
+    window_size = 5  # Adjust window size based on your data sampling rate
+    acceleration_filtered = (
+        df["acceleration_x"].rolling(window=window_size, center=True).mean()
+    )
+
+    # Fill NaN values at the edges due to rolling window
+    acceleration_filtered = acceleration_filtered.fillna(df["acceleration_x"])
+
+    # Remove gravity component and apply a stronger damping factor
+    damping_factor = 0.05  # Much stronger damping to decrease sensitivity
+    ay_adjusted = (
+        acceleration_filtered - acceleration_filtered.loc[:20].mean()
+    ) * damping_factor
+
+    # Add a noise threshold filter to ignore small accelerations
+    noise_threshold = 0.05  # Adjust based on your sensor's noise level
+    ay_adjusted = ay_adjusted.apply(lambda x: 0 if abs(x) < noise_threshold else x)
+
+    # Set initial values
+    df["velocity"] = 0.0
+    df["relative_position"] = initial_position
+
+    # Increase velocity decay for stronger stability
+    velocity_decay = 0.95  # Stronger decay to reduce drift
+
+    # Apply integration step by step
+    for i in range(1, len(df)):
+        if i >= len(df) - 1:  # Skip the last row
+            continue
+
+        dt = time_diffs.iloc[i]
+        if dt <= 0:
+            dt = 0.01
+
+        # Apply decay to velocity (stronger for near-zero velocities)
+        prev_velocity = df["velocity"].iloc[i - 1] * velocity_decay
+        if abs(prev_velocity) < 0.01:  # Extra damping for small velocities
+            prev_velocity = 0
+
+        # Calculate velocity with additional noise filtering
+        if abs(ay_adjusted.iloc[i]) > noise_threshold / 5:  # Secondary noise filter
+            avg_accel = (ay_adjusted.iloc[i - 1] + ay_adjusted.iloc[i]) / 2
+            new_velocity = prev_velocity + avg_accel * dt
+        else:
+            new_velocity = (
+                prev_velocity  # Maintain velocity if acceleration is just noise
+            )
+
+        # Clip velocity
+        new_velocity = max(min(new_velocity, 20), -20)
+        df.loc[df.index[i], "velocity"] = new_velocity
+
+        # Calculate position with less sensitivity to velocity
+        position_damping = 0.8  # Damping factor specifically for position updates
+        avg_velocity = (prev_velocity + new_velocity) / 2 * position_damping
+        new_position = df["relative_position"].iloc[i - 1] + avg_velocity * dt
+
+        # Clip position to [-1, 1]
+        new_position = max(min(new_position, 2), -2)
+        df.loc[df.index[i], "relative_position"] = new_position
+
+    return df
+
+
 def parse_contents(contents):
     content_type, content_string = contents.split(",")
     decoded = base64.b64decode(content_string)
     df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
 
     df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    # Calculate position and velocity using the dedicated function
+    df = calculate_position_velocity(df)
 
     return df
 
@@ -151,10 +254,11 @@ def update_figure_on_upload(contents):
     df = parse_contents(contents)
     edits = df.copy()  # Store the original DataFrame for edits
 
-    df = standard_scale_features(df)
+    df_scaled = standard_scale_features(df.copy())
 
+    # Create figure with both original sensor data and calculated position/velocity
     fig = px.line(
-        df,
+        df_scaled,
         x="timestamp",
         y=[
             "acceleration_x",
@@ -166,6 +270,31 @@ def update_figure_on_upload(contents):
         ],
         title="Sensor Data",
     )
+
+    # Add relative position and velocity as separate traces
+    fig.add_trace(
+        go.Scatter(
+            x=df["timestamp"],
+            y=df["relative_position"],
+            mode="lines",
+            name="Relative Position",
+            line=dict(width=2, color="green"),
+        )
+    )
+
+    if "velocity" in df.columns:
+        # Use a smaller scaling factor to better visualize velocity
+        scaled_velocity = df["velocity"] / 10  # Adjust scaling for better visualization
+        fig.add_trace(
+            go.Scatter(
+                x=df["timestamp"],
+                y=scaled_velocity,
+                mode="lines",
+                name="Velocity (scaled)",
+                line=dict(width=1.5, color="purple", dash="dash"),
+            )
+        )
+
     fig.update_xaxes(rangeslider_visible=True)
     fig.update_layout(
         clickmode="select",
@@ -310,7 +439,7 @@ def download_csv(n_clicks, filename, selected_person):
             export_df.loc[
                 (export_df["timestamp"] >= start_time)
                 & (export_df["timestamp"] <= end_time),
-                "prev_label",
+                "prev_label_block",
             ] = prev_label
             prev_label = label
 
