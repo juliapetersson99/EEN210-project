@@ -9,7 +9,7 @@
 </head>
 <body class="bg-gray-50">
   <main class="py-24 sm:py-32">
-    <div class="mx-auto max-w-2xl px-6 lg:max-w-7xl lg:px-8">
+    <div class="mx-auto px-6 lg:px-8" style="max-width: 90rem">
       
       <!-- Main Header -->
       <header class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
@@ -56,15 +56,17 @@
         <div class="space-y-6">
           <!-- Confidence Chart Card -->
           <div class="bg-white shadow rounded-xl p-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Confidence of Current Activity</h2>
+            <h3 class="text-2xl font-semibold text-gray-800">Confidence of Current Activity</h3>
             <canvas id="confidenceChart" class="mt-4"></canvas>
           </div>
           <!-- Current Activity & Confidence Details Card -->
           <div class="bg-white shadow rounded-xl p-6">
-            <h3 class="text-xl font-semibold text-gray-800">Current Activity:</h3>
-            <div id="current_state" class="mt-2 text-gray-900"></div>
-            <h3 class="mt-4 text-xl font-semibold text-gray-800">Confidence:</h3>
-            <div id="confidence_state" class="mt-2 text-gray-900"></div>
+            <div id="current_state" class="mt-2 text-gray-900">
+              <h3 class="text-xl font-semibold text-gray-800">Current Activity:</h3>
+            </div>
+            <div id="confidence_state" class="mt-2 text-gray-900">
+              <h3 class="text-xl font-semibold text-gray-800">Confidence:</h3>
+            </div>
             <button class="alert-button mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
               Alert 112 (event call ambulance)
             </button>
@@ -78,7 +80,7 @@
         </div>
       </section>
       
-      <!-- Lower Section: CHARTS -->
+      <!-- Lower Section: -->
       <section class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white shadow rounded-xl p-6">
           <canvas id="accelChart"></canvas>
@@ -183,11 +185,10 @@
         }
         if (data.label && data.confidence) {
           document.getElementById('current_state').innerHTML = `
-            <h2 class="text-lg font-semibold text-gray-800">Current Activity:</h2>
-            <h3 class="mt-2 text-gray-900">${data.label}: ${Object.entries(data.confidence)
-              .map(([key, value]) => `${key}: ${(value * 100).toFixed(2)}%`)
-              .join(', ')}</h3>`;
+            <h3 class="text-lg font-semibold text-gray-800">Current Activity: ${data.label}</h3>`
           
+          document.getElementById('confidence_state').innerHTML =
+           ` <h3 class="text-lg font-semibold text-gray-800" > Confidence: ${data.confidence[data.label] * 100}%</h3>`; 
           confidenceData.fill(0);
           confidenceLabels.forEach((label, index) => {
             if (data.confidence[label] !== undefined) {
