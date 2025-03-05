@@ -196,6 +196,15 @@ async def websocket_endpoint(websocket: WebSocket):
     rolling_stats_gz = RollingStats(window)
     rolling_stats_gm = RollingStats(window)  # gyroscope magnitude
 
+
+
+    # Baseline calibration variables and buffers
+    baselineCalculated = False
+    accelBaseline = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    gyroBaseline = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    accelBuffer = {'x': [], 'y': [], 'z': []}
+    gyroBuffer = {'x': [], 'y': [], 'z': []}
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -207,20 +216,41 @@ async def websocket_endpoint(websocket: WebSocket):
             # use raw_data for prediction
             raw_data = list(json_data.values())
 
-            # Add time stamp to the last received data
-            # json_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            # data_processor.add_data(json_data)
-            # this line save the recent 100 samples to the CSV file. you can change 100 if you want.
-            # if len(data_processor.data_buffer) >= 100:
-            #    data_processor.save_to_csv()
-
-            # Extract raw sensor values
             ax = float(json_data["acceleration_x"])
             ay = float(json_data["acceleration_y"])
             az = float(json_data["acceleration_z"])
             gx = float(json_data["gyroscope_x"])
             gy = float(json_data["gyroscope_y"])
             gz = float(json_data["gyroscope_z"])
+
+
+            if not baselineCalculated:
+                accelBuffer['x'].append(ax)
+                accelBuffer['y'].append(ay)
+                accelBuffer['z'].append(az)
+                gyroBuffer['x'].append(gx)
+                gyroBuffer['y'].append(gy)
+                gyroBuffer['z'].append(gz)
+                
+                if len(accelBuffer['x']) >= 20:
+                    # Compute the baseline averages
+                    accelBaseline['x'] = np.mean(accelBuffer['x'])
+                    accelBaseline['y'] = np.mean(accelBuffer['y'])
+                    accelBaseline['z'] = np.mean(accelBuffer['z'])
+                    gyroBaseline['x'] = np.mean(gyroBuffer['x'])
+                    gyroBaseline['y'] = np.mean(gyroBuffer['y'])
+                    gyroBaseline['z'] = np.mean(gyroBuffer['z'])
+                    baselineCalculated = True
+                    print("Baseline calculated:", accelBaseline, gyroBaseline)
+            
+            # If baseline has been calculated, adjust the sensor readings
+            if baselineCalculated:
+                ax = ax - accelBaseline['x']
+                ay = ay - accelBaseline['y']
+                az = az - accelBaseline['z']
+                gx = gx - gyroBaseline['x']
+                gy = gy - gyroBaseline['y']
+                gz = gz - gyroBaseline['z']
 
             accel_magnitude = np.sqrt(ax**2 + ay**2 + az**2)
             gyro_magnitude = np.sqrt(gx**2 + gy**2 + gz**2)

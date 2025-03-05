@@ -100,6 +100,10 @@
     var accelData = { x: [], y: [], z: [] };
     var gyroData = { x: [], y: [], z: [] };
     var maxDataPoints = 250;
+    const gToMs2 = 9.81;          
+    const degToRad = Math.PI / 180;
+    const max_acellero = 1000 * gToMs2; // 8g in m/s² (~78.48 m/s²)
+    const max_gyro = 500
 
     var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
     var confidenceData = new Array(confidenceLabels.length).fill(0);
@@ -109,39 +113,95 @@
     var accelChart = new Chart(accelCtx, {
       type: 'line',
       data: {
-        labels: labelsArray,
+        labels: [], // Time labels (max 250 data points)
         datasets: [
-          { label: 'Acceleration X', data: accelData.x, borderColor: 'red', fill: false },
-          { label: 'Acceleration Y', data: accelData.y, borderColor: 'green', fill: false },
-          { label: 'Acceleration Z', data: accelData.z, borderColor: 'blue', fill: false }
+          {
+            label: 'Acceleration X',
+            data: [],
+            borderColor: 'red',
+            fill: false,
+          },
+          {
+            label: 'Acceleration Y',
+            data: [],
+            borderColor: 'blue',
+            fill: false,
+          },
+          {
+            label: 'Acceleration Z',
+            data: [],
+            borderColor: 'green',
+            fill: false,
+          }
         ]
       },
       options: {
         responsive: true,
+        animation: false, // Disable animations for real-time performance
         scales: {
-          x: { title: { display: true, text: 'Time' } },
-          y: { title: { display: true, text: 'Acceleration' } }
+          x: {
+            ticks: {
+              autoSkip: true,
+              maxTicksLimit: 10 // Adjust as needed
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Acceleration (m/s²)'
+            },
+            min: -max_acellero, 
+            max: max_acellero   
+          }
         }
       }
     });
 
-    // Gyroscope Chart
+    // Create Gyroscope Chart
     var gyroCtx = document.getElementById('gyroChart').getContext('2d');
     var gyroChart = new Chart(gyroCtx, {
       type: 'line',
       data: {
-        labels: labelsArray,
+        labels: [], // Time labels (max 250 data points)
         datasets: [
-          { label: 'Gyroscope X', data: gyroData.x, borderColor: 'orange', fill: false },
-          { label: 'Gyroscope Y', data: gyroData.y, borderColor: 'purple', fill: false },
-          { label: 'Gyroscope Z', data: gyroData.z, borderColor: 'cyan', fill: false }
+          {
+            label: 'Gyroscope X',
+            data: [],
+            borderColor: 'red',
+            fill: false,
+          },
+          {
+            label: 'Gyroscope Y',
+            data: [],
+            borderColor: 'blue',
+            fill: false,
+          },
+          {
+            label: 'Gyroscope Z',
+            data: [],
+            borderColor: 'green',
+            fill: false,
+          }
         ]
       },
       options: {
         responsive: true,
+        animation: false, // Disable animations for real-time performance
         scales: {
-          x: { title: { display: true, text: 'Time' } },
-          y: { title: { display: true, text: 'Gyroscope' } }
+          x: {
+            ticks: {
+              autoSkip: true,
+              maxTicksLimit: 10 // Adjust as needed
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Angular Velocity (rad/s)'
+            },
+            min: -max_gyro ,
+            max: max_gyro   
+          }
         }
       }
     });
@@ -172,16 +232,31 @@
       try {
         const data = JSON.parse(event.data);
         if (data.acceleration_x !== undefined) {
-          labelsArray.push(new Date().toLocaleTimeString());
-          accelData.x.push(data.acceleration_x);
-          accelData.y.push(data.acceleration_y);
-          accelData.z.push(data.acceleration_z);
-          gyroData.x.push(data.gyroscope_x);
-          gyroData.y.push(data.gyroscope_y);
-          gyroData.z.push(data.gyroscope_z);
+          const currentTime = new Date().toLocaleTimeString();
+          accelChart.data.labels.push(currentTime);
+          gyroChart.data.labels.push(currentTime);
+
+          accelChart.data.datasets[0].data.push(data.acceleration_x * gToMs2);
+          accelChart.data.datasets[1].data.push(data.acceleration_y * gToMs2);
+          accelChart.data.datasets[2].data.push(data.acceleration_z * gToMs2);
+
+          gyroChart.data.datasets[0].data.push(data.gyroscope_x * degToRad);
+          gyroChart.data.datasets[1].data.push(data.gyroscope_y * degToRad);
+          gyroChart.data.datasets[2].data.push(data.gyroscope_z * degToRad);
           
-          accelChart.update(0);
-          gyroChart.update(0);
+              // Keep only the most recent 250 data points
+          if (accelChart.data.labels.length > 250) {
+            accelChart.data.labels.shift();
+            accelChart.data.datasets.forEach(dataset => dataset.data.shift());
+          }
+          if (gyroChart.data.labels.length > 250) {
+            gyroChart.data.labels.shift();
+            gyroChart.data.datasets.forEach(dataset => dataset.data.shift());
+          }
+
+          // Update the charts immediately
+          accelChart.update('none');
+          gyroChart.update('none');
         }
         if (data.label && data.confidence) {
           document.getElementById('current_state').innerHTML = `

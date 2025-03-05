@@ -72,18 +72,25 @@ def preprocess_file(path: str, window_size=100) -> pd.DataFrame:
     df = pd.read_csv(path)
     df = df[df.label != "none"].dropna()
 
-    # Separate features (sensor data) and labels
-    X = df[
-        [
-            "acceleration_x",
-            "acceleration_y",
-            "acceleration_z",
-            "gyroscope_x",
-            "gyroscope_y",
-            "gyroscope_z",
-        ]
+        # Separate features (sensor data) and labels
+    sensor_cols = [
+        "acceleration_x",
+        "acceleration_y",
+        "acceleration_z",
+        "gyroscope_x",
+        "gyroscope_y",
+        "gyroscope_z",
     ]
 
+
+    # Calculate the baseline as the mean of the first 20 data points for each sensor column
+    baseline = df[sensor_cols].head(20).mean()
+    # Subtract the baseline from the sensor columns, for the file
+    df[sensor_cols] = df[sensor_cols] - baseline
+
+    X = df[
+        sensor_cols
+    ]
     min_max_scaler = MinMaxScaler()
     arr_scaled = min_max_scaler.fit_transform(X)
     X = pd.DataFrame(arr_scaled, columns=X.columns)
