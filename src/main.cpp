@@ -26,8 +26,8 @@ void writeRegister(uint8_t reg, uint8_t data) {
 
 // Public internet, allow port in firewall
 // Replace with your network credentials
-const char *ssid = "iPhone (4)";
-const char *password = "P4S5W0RD-9"; 
+const char *ssid = "asuss iPhone";
+const char *password = "klolp123"; 
 
 const int PWR_MGMT_1 = 0x6B;
 const int CONFIG = 0x1A;
@@ -35,9 +35,9 @@ const int GYRO_CONFIG = 0x1B;
 const int ACCEL_CONFIG = 0x1C;
 
 // Replace with your WebSocket server address
-const char *webSocketServer = "172.20.10.9";
+const char *webSocketServer = "172.20.10.2";
 
-const int webSocketPort = 8000;
+const int webSocketPort = 8000; 
 const char *webSocketPath = "/";
 MPU6050 mpu; // Define the sensor
 WebSocketsClient client;
@@ -69,7 +69,7 @@ void setup()
   accel_config &= ~0x18; // Clear bits 4:3
   accel_config |= (2 << 3); // Set to 2 for ±8g
   uint8_t accel_range = (accel_config & 0x18) >> 3; // Bits 4:3
-
+ 
   writeRegister(ACCEL_CONFIG, accel_config);
   Serial.print("Accelerometer Range: ");
   switch (accel_range) {

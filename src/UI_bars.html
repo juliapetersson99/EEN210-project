@@ -67,16 +67,14 @@
             <div id="confidence_state" class="mt-2 text-gray-900">
               <h3 class="text-xl font-semibold text-gray-800">Confidence:</h3>
             </div>
-            <button class="alert-button mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-              Alert 112 (event call ambulance)
-            </button>
+            <div id="alert_button_container"></div>
           </div>
         </div>
         
-        <!-- Column 3: History, piechart -->
+        <!-- Column 3: History, of events -->
         <div class="bg-white shadow rounded-xl p-6">
-          <h3 class="text-xl font-semibold text-gray-800">History</h3>
-          <canvas id="pichart" class="mt-4"></canvas>
+          <h3 class="text-xl font-semibold text-gray-800">Event Logs</h3>
+          <div id="event_log" class="mt-4 space-y-4 max-h-[400px] overflow-y-auto"></div>
         </div>
       </section>
       
@@ -95,15 +93,18 @@
 
   
   <script>
-    var ws = new WebSocket("ws://localhost:8000/ws");
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientId = urlParams.get("patientId") || "unknown";
+
+    var ws = new WebSocket("ws://localhost:8000/ws?patientId=" + patientId);
     var labelsArray = [];
     var accelData = { x: [], y: [], z: [] };
     var gyroData = { x: [], y: [], z: [] };
     var maxDataPoints = 250;
     const gToMs2 = 9.81;          
     const degToRad = Math.PI / 180;
-    const max_acellero = 1000 * gToMs2; // 8g in m/s² (~78.48 m/s²)
-    const max_gyro = 500
+    const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
+    const max_gyro = 1000
 
     var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
     var confidenceData = new Array(confidenceLabels.length).fill(0);
@@ -228,6 +229,7 @@
 
     ws.onmessage = function (event) {
       console.log("Received data:", event.data);
+      updateAlertButtons(event.data.state);
       
       try {
         const data = JSON.parse(event.data);
@@ -363,6 +365,7 @@
       `;
       fetchPatientConditions(patientIdentifier);
       fetchPatientMedications(patientIdentifier);
+      fetchEventLogs(patientIdentifier);
     }
 
     function fetchPatientConditions(patientId) {
@@ -420,8 +423,105 @@
         document.getElementById("patient_medications").textContent = "Error loading medications";
       });
     }
+    function formatTimestamp(timestamp) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function fetchEventLogs() {
+  // Extract the patient ID from the URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const patientId = urlParams.get("patientId") || "unknown";
+
+  // Fetch logs for the specific patient
+  fetch(`/logs?patientId=${patientId}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error("Network response was not ok: " + response.statusText);
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Sort events so that the most recent are first
+      data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      // Limit to the three most recent events
+
+      const eventLogDiv = document.getElementById("event_log");
+      // Clear previous logs
+      eventLogDiv.innerHTML = "";
+
+      data.forEach(entry => {
+        const logEntry = document.createElement("div");
+        logEntry.className = "p-4 bg-white rounded-lg shadow border border-gray-200";
+        logEntry.innerHTML = `
+          <div class="text-sm text-gray-500">${formatTimestamp(entry.timestamp)}</div>
+          <div class="mt-1 text-lg font-bold text-gray-800">${entry.state}</div>
+          <div class="mt-1 text-gray-600">${entry.message}</div>
+        `;
+        eventLogDiv.appendChild(logEntry);
+      });
+    })
+    .catch(error => {
+      console.error("Error fetching event logs:", error);
+    });
+    
+}
+
+function updateAlertButtons(state) {
+  let container = document.getElementById("alert_buttons");
+  
+  if (state === "no_movement") {
+    // If no container exists, create one
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "alert_buttons";
+      // Tailwind classes: add margin top and horizontal spacing between buttons.
+      container.className = "mt-4 space-x-2";
+      
+      // Set the inner HTML of the container with the two buttons
+      container.innerHTML = `
+        <button id="alert_112" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+          Alert 112 (call ambulance)
+        </button>
+        <button id="but_patient_ok" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+          Patient is OK (do not call ambulance)
+        </button>
+      `;
+      
+      // Append the container to a desired parent. Here we attach it to the parent of the "current_state" element.
+      let parent = document.getElementById("current_state").parentElement;
+      parent.appendChild(container);
+      
+      // Add an event listener to the "Patient is OK" button
+      document.getElementById("but_patient_ok").addEventListener("click", function() {
+        // When clicked, remove the button container
+        container.remove();
+        // Optionally, you might also want to notify the server or update the state
+        console.log("Patient confirmed OK. Removing alert buttons.");
+      });
+      
+      // Optionally, add an event listener to the "Alert 112" button for further actions
+      document.getElementById("alert_112").addEventListener("click", function() {
+        // For example, trigger ambulance call logic here
+        console.log("Alert 112 triggered. Ambulance will be called.");
+        container.remove();
+      });
+    }
+  } else {
+    // If state is not "no_movement" and a container exists, remove it.
+    if (container) {
+      container.remove();
+    }
+  }
+}
 
     fetchPatientData();
+    fetchEventLogs(patientId);
   </script>
 </body>
 </html>

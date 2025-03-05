@@ -1,0 +1,9 @@
+2025-03-05T18:14:17.432777, unknown, fall_notification, Fall detected.
+2025-03-05T18:14:27.442967, unknown, no_movement, Patient still not moving after fall.
+2025-03-05T18:14:40.083134, unknown, person_safe, Patient recovered and is safe.
+2025-03-05T18:15:53.921383, unknown, fall_notification, Fall detected.
+2025-03-05T18:16:03.922095, unknown, no_movement, Patient still not moving after fall.
+2025-03-05T18:16:36.562917, unknown, fall_notification, Fall detected.
+2025-03-05T18:16:46.798780, unknown, no_movement, Patient still not moving after fall.
+2025-03-05T18:16:47.036702, unknown, person_safe, Patient recovered and is safe.
+2025-03-05T18:18:17.449940, unknown, fall_notification, Fall detected.
