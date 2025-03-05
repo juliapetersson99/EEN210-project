@@ -200,8 +200,8 @@ async def collect_data(label: str):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global current_label, window, send_interval, predict_interval
-    patient_id = websocket.query_params.get("patientId", "unknown"
-                                            )
+    patient_id = websocket.query_params.get("patientId", "unknown")
+                                            
     df = None
     state_machine.set_patinet_id(patient_id)
     await websocket_manager.connect(websocket)
@@ -246,6 +246,8 @@ async def websocket_endpoint(websocket: WebSocket):
             gy = float(json_data["gyroscope_y"])
             gz = float(json_data["gyroscope_z"])
 
+            
+
 
             if not baselineCalculated:
                 accelBuffer['x'].append(ax)
@@ -257,7 +259,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 gyroBuffer['y'].append(gy)
                 gyroBuffer['z'].append(gz)
                 
-                if len(accelBuffer['x']) >= 50:
+                if len(accelBuffer['x']) >= 10:
                     # Compute the baseline averages
                     accelBaseline['x'] = np.mean(accelBuffer['x'])
                     accelBaseline['y'] = np.mean(accelBuffer['y'])
@@ -269,17 +271,26 @@ async def websocket_endpoint(websocket: WebSocket):
                     gyroBaseline['z'] = np.mean(gyroBuffer['z'])
                     baselineCalculated = True
                     print("Baseline calculated:", accelBaseline, gyroBaseline)
-                    #time.sleep(10)
+                    time.sleep(2)
             
             # If baseline has been calculated, adjust the sensor readings and start sending data
             else:
-                ax = ax - accelBaseline['x']
-                ay = ay - accelBaseline['y']
-                az = az - accelBaseline['z']
+                ax = (ax - accelBaseline['x'])
+                ay =(ay - accelBaseline['y'])
+                az = (az - accelBaseline['z'])
 
-                gx = gx - gyroBaseline['x']
-                gy = gy - gyroBaseline['y']
-                gz = gz - gyroBaseline['z']
+                gx = (gx - gyroBaseline['x'])
+                gy = (gy - gyroBaseline['y'])
+                gz = (gz - gyroBaseline['z'])
+
+                #add to adjusted data
+                json_data["acceleration_x"] = ax
+                json_data["acceleration_y"] = ay
+                json_data["acceleration_z"] = az
+                json_data["gyroscope_x"] = gx
+                json_data["gyroscope_y"] = gy
+                json_data["gyroscope_z"] = gz
+                #print("Adjusted values:", ax, ay, az, gx, gy, gz)
 
                 accel_magnitude = np.sqrt(ax**2 + ay**2 + az**2)
                 gyro_magnitude = np.sqrt(gx**2 + gy**2 + gz**2)
@@ -359,24 +370,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     # "gyroscope_mag_std": gm_std,
                 }
 
-                # Add a timestamp
-
-                # newDataDf = pd.DataFrame(json_data, index=[0])
-                # newDataDf["timestamp"] = pd.Timestamp.now()
-                # newDataDf["label"] = None
-                # newDataDf["prev_label"] = None
-
-                # Update rolling stats
-
-                #
-                # feature_df = pd.concat([feature_df, pd.DataFrame([feature_row])], ignore_index=True)
                 feature_df = pd.DataFrame([feature_row])
                 feature_df["timestamp"] = pd.Timestamp.now()
                 feature_df["label"] = None  # Set to None if you don't have a label yet
                 feature_df["prev_label"] = None  # Set to None if you don't have a label yet
-
-                # Example: let's define "label" either from a user or from a model prediction
-                # If you're collecting data for labeled training, you might have current_label set globally.
                 label = current_label or "unknown"
 
                 if df is None:
@@ -397,7 +394,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if total_measurements % predict_interval == 0:
                     label = predict_label(model, scaler, df)
                 else:
-                    print(df)
+                    #print(df)
                     label = df["label"].iloc[-2]  # take last label
                 json_data["label"] = current_label or label
                 df.loc[df.index[-1], "label"] = current_label or label
@@ -410,11 +407,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Calculate the distribution of the last 50 labels
                     label_distribution = df["label"].value_counts(normalize=True).to_dict()
 
-                    # print the last data in the terminal
-                    print(json_data)
-                    print(
-                        label_distribution  # .to_string(header=["Label", "Proportion"], index=True)
-                    )
+
                     json_data["confidence"] = label_distribution
 
                     end_time = time.time()  # End timing
@@ -422,11 +415,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         end_time - start_time
                     )  # Add processing time to the data
                     print(f"Processing time: {json_data['processing_time']:.3f} seconds")
-
-                    label = json_data["label"]
-                    json_data["state"] = state_machine.current_state
-                    #update state
                     state_machine.update_state(label)
+                    json_data["state"] = state_machine.current_state
+                    print(json_data)
                     # send a flag to update the logs in history and alert the user
                     if state_machine.current_state == ["no_movement", "fall_notification"]:
                         json_data["update_logs"] = True

@@ -30,7 +30,7 @@ const char *ssid = "asuss iPhone";
 const char *password = "klolp123"; 
 
 const int PWR_MGMT_1 = 0x6B;
-const int CONFIG = 0x1A;
+const int CONFIG = 0x1A; 
 const int GYRO_CONFIG = 0x1B;
 const int ACCEL_CONFIG = 0x1C;
 

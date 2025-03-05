@@ -103,8 +103,8 @@
     var maxDataPoints = 250;
     const gToMs2 = 9.81;          
     const degToRad = Math.PI / 180;
-    const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
-    const max_gyro = 1000
+    //const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
+    //const max_gyro = 500
 
     var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
     var confidenceData = new Array(confidenceLabels.length).fill(0);
@@ -151,8 +151,8 @@
               display: true,
               text: 'Acceleration (m/s²)'
             },
-            min: -max_acellero, 
-            max: max_acellero   
+            //min: -max_acellero, 
+            //max: max_acellero   
           }
         }
       }
@@ -200,8 +200,8 @@
               display: true,
               text: 'Angular Velocity (rad/s)'
             },
-            min: -max_gyro ,
-            max: max_gyro   
+            //min: -max_gyro ,
+            //max: max_gyro   
           }
         }
       }
@@ -228,11 +228,16 @@
     });
 
     ws.onmessage = function (event) {
-      console.log("Received data:", event.data);
-      updateAlertButtons(event.data.state);
+      //console.log("Received data:", event.data);
+      
       
       try {
         const data = JSON.parse(event.data);
+         
+        updateAlertButtons(data.state);
+        console.log(data.state);
+
+
         if (data.acceleration_x !== undefined) {
           const currentTime = new Date().toLocaleTimeString();
           accelChart.data.labels.push(currentTime);
@@ -472,53 +477,66 @@ function fetchEventLogs() {
     
 }
 
+// Global variable to store the cooldown timestamp (in milliseconds)
+let patientOkCooldownUntil = 0;
+
 function updateAlertButtons(state) {
   let container = document.getElementById("alert_buttons");
-  
+
   if (state === "no_movement") {
-    // If no container exists, create one
+    // Check if we're still in the cooldown period.
+    if (Date.now() < patientOkCooldownUntil) {
+      console.log("In cooldown period; not displaying alert buttons yet.");
+      if (container) {
+        container.remove();
+      }
+      return;
+    }
+    
+    // Create the container if it doesn't exist.
     if (!container) {
       container = document.createElement("div");
       container.id = "alert_buttons";
-      // Tailwind classes: add margin top and horizontal spacing between buttons.
       container.className = "mt-4 space-x-2";
       
-      // Set the inner HTML of the container with the two buttons
       container.innerHTML = `
-        <button id="alert_112" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-          Alert 112 (call ambulance)
-        </button>
-        <button id="but_patient_ok" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-          Patient is OK (do not call ambulance)
-        </button>
+        <div class="p-4">
+          <button id="alert_112" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 mr-4">
+            Alert 112 (call ambulance)
+          </button>
+          <button id="but_patient_ok" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            Patient is OK (do not call ambulance)
+          </button>
+        </div>
       `;
       
-      // Append the container to a desired parent. Here we attach it to the parent of the "current_state" element.
+      // Append the container to the desired parent (here, the parent of the "current_state" element).
       let parent = document.getElementById("current_state").parentElement;
       parent.appendChild(container);
       
-      // Add an event listener to the "Patient is OK" button
+      // Event listener for "Patient is OK" button
       document.getElementById("but_patient_ok").addEventListener("click", function() {
-        // When clicked, remove the button container
         container.remove();
-        // Optionally, you might also want to notify the server or update the state
-        console.log("Patient confirmed OK. Removing alert buttons.");
+        // Set a cooldown for 100 seconds (100,000 ms)
+        patientOkCooldownUntil = Date.now() + 100 * 1000;
+        console.log("Patient confirmed OK. Removing alert buttons and starting cooldown for 100 seconds.");
       });
       
-      // Optionally, add an event listener to the "Alert 112" button for further actions
+      // Event listener for "Alert 112" button
       document.getElementById("alert_112").addEventListener("click", function() {
-        // For example, trigger ambulance call logic here
         console.log("Alert 112 triggered. Ambulance will be called.");
-        container.remove();
+        // Replace the button area with a text message
+        container.innerHTML = `<div class="p-4 text-red-600 font-bold">Alert 112 triggered. Ambulance will be called.</div>`;
       });
     }
   } else {
-    // If state is not "no_movement" and a container exists, remove it.
+    // Remove the container if state is not "no_movement"
     if (container) {
       container.remove();
     }
   }
 }
+
 
     fetchPatientData();
     fetchEventLogs(patientId);
