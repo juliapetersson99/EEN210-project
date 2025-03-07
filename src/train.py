@@ -5,25 +5,7 @@ import glob
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import random
-
-SENSOR_COLS = [
-    "acceleration_x",
-    "acceleration_y",
-    "acceleration_z",
-    "gyroscope_x",
-    "gyroscope_y",
-    "gyroscope_z",
-]
-
-POSSIBLE_LABELS = [
-    "falling",
-    "walking",
-    "running",
-    "sitting",
-    "standing",
-    "laying",
-    "recover",
-]
+from common import SENSOR_COLS, POSSIBLE_LABELS
 
 
 def add_features(data_frame, rolling_size):
@@ -41,9 +23,9 @@ def add_features(data_frame, rolling_size):
             data_frame[f"{column_name}_max"] = data.rolling(window=rolling_size).max()
             data_frame[f"{column_name}_min"] = data.rolling(window=rolling_size).min()
             data_frame[f"{column_name}_std"] = data.rolling(window=rolling_size).std()
-            data_frame[f"{column_name}_median"] = data.rolling(
-                window=rolling_size
-            ).median()
+            # data_frame[f"{column_name}_median"] = data.rolling(
+            #     window=rolling_size
+            # ).median()
 
         data_frame[f"{data_type}_magnitude"] = np.sqrt(
             data_frame[f"{data_type}_x"] ** 2
@@ -221,13 +203,13 @@ def cross_validation_testing(
 #     print(f"n_estimators = {n}")
 #     cross_validation_testing(model_settings=dict(n_estimators=n, max_depth=20))
 
-cross_validation_testing(folder="clean_data")
+# cross_validation_testing(folder="clean_data")
 
 # %% Train model
 
 
 def train_final_model(
-    folder="data", model_settings=dict(n_estimators=100, max_depth=20)
+    folder="data", model_settings=dict(n_estimators=100, max_depth=15)
 ):
     print("Loading and preprocessing data")
     # Load the data
@@ -254,11 +236,13 @@ def train_final_model(
     X = X.iloc[idx]
     y = y.iloc[idx]
 
+    print(X.columns)
+
     clf = train_model(X, y, settings=model_settings)
     print("Model trained")
 
     # save the model
-    joblib.dump((clf, min_max_scaler), "final_model.joblib")
+    joblib.dump((clf, min_max_scaler, X.columns), "final_model.joblib")
     print("Model saved")
 
     # validate the model
