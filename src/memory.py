@@ -140,6 +140,9 @@ class LabelMemory:
         Add a new label probability Series into the rolling window.
         Remove the oldest label if we're over capacity.
         """
+        # Reindex the Series to ensure correct order
+        new_label = new_label.reindex(self.labels)
+
         # Add new sample
         self.data_deque.append(new_label)
 

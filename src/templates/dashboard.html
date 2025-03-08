@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fall Detection - Real-time Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50">
+    <main class="py-24 sm:py-32">
+        <div class="mx-auto px-6 lg:px-8" style="max-width: 90rem">
+
+            <!-- Main Header -->
+            <header class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-900">Real-time Data Collection</h1>
+                <button id="closeButton" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                    Close Connection
+                </button>
+            </header>
+
+            <!-- Dashboard Header: 3 Columns -->
+            <section class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Column 1: Patien -->
+                <div id="patient_card" class="bg-white shadow rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Patient Card</h3>
+                    <div id="patient_info" class="space-y-2">
+                        <div>
+                            <h4 class="font-medium text-gray-700">Patient Name:</h4>
+                            <p class="text-gray-900">John Doe</p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700">Patient ID:</h4>
+                            <p class="text-gray-900">123456</p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700">Age:</h4>
+                            <p class="text-gray-900">65</p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700">Address:</h4>
+                            <p id="patient_address" class="text-gray-900">Not available</p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700">Condition:</h4>
+                            <p id="patient_condition" class="text-gray-900">Not available</p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700">Current Medications:</h4>
+                            <p id="patient_medications" class="text-gray-900">Not available</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 2: Vertical Stack (Confidence Chart, Current Activity, and Confidence) -->
+                <div class="space-y-6">
+                    <!-- Confidence Chart Card -->
+                    <div class="bg-white shadow rounded-xl p-6">
+                        <h3 class="text-2xl font-semibold text-gray-800">Confidence of Current Activity</h3>
+                        <canvas id="confidenceChart" class="mt-4"></canvas>
+                    </div>
+                    <!-- Current Activity & Confidence Details Card -->
+                    <div class="bg-white shadow rounded-xl p-6">
+                        <div id="current_state" class="mt-2 text-gray-900">
+                            <h3 class="text-xl font-semibold text-gray-800">Current Activity:</h3>
+                        </div>
+                        <div id="confidence_state" class="mt-2 text-gray-900">
+                            <h3 class="text-xl font-semibold text-gray-800">Confidence:</h3>
+                        </div>
+                        <div id="alert_button_container"></div>
+                    </div>
+                </div>
+
+                <!-- Column 3: History, of events -->
+                <div class="bg-white shadow rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-800">Event Logs</h3>
+                    <div id="event_log" class="mt-4 space-y-4 max-h-[400px] overflow-y-auto"></div>
+                </div>
+            </section>
+
+            <!-- Lower Section: -->
+            <section class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white shadow rounded-xl p-6">
+                    <canvas id="accelChart"></canvas>
+                </div>
+                <div class="bg-white shadow rounded-xl p-6">
+                    <canvas id="gyroChart"></canvas>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const patientId = urlParams.get("patientId") || "unknown";
+
+        var ws = new WebSocket("ws://localhost:8000/ws?patientId=" + patientId);
+        var labelsArray = [];
+        var accelData = { x: [], y: [], z: [] };
+        var gyroData = { x: [], y: [], z: [] };
+        var maxDataPoints = 250;
+        const gToMs2 = 9.81;
+        const degToRad = Math.PI / 180;
+        //const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
+        //const max_gyro = 500
+
+        var confidenceLabels = ["walking", "running", "falling", "recover", "laying", "standing", "sitting"];
+        var confidenceData = new Array(confidenceLabels.length).fill(0);
+
+        // Accelerometer Chart
+        var accelCtx = document.getElementById('accelChart').getContext('2d');
+        var accelChart = new Chart(accelCtx, {
+            type: 'line',
+            data: {
+                labels: [], // Time labels (max 250 data points)
+                datasets: [
+                    {
+                        label: 'Acceleration X',
+                        data: [],
+                        borderColor: 'red',
+                        fill: false,
+                    },
+                    {
+                        label: 'Acceleration Y',
+                        data: [],
+                        borderColor: 'blue',
+                        fill: false,
+                    },
+                    {
+                        label: 'Acceleration Z',
+                        data: [],
+                        borderColor: 'green',
+                        fill: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false, // Disable animations for real-time performance
+                scales: {
+                    x: {
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 10 // Adjust as needed
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Acceleration (m/s²)'
+                        },
+                        //min: -max_acellero, 
+                        //max: max_acellero   
+                    }
+                }
+            }
+        });
+
+        // Create Gyroscope Chart
+        var gyroCtx = document.getElementById('gyroChart').getContext('2d');
+        var gyroChart = new Chart(gyroCtx, {
+            type: 'line',
+            data: {
+                labels: [], // Time labels (max 250 data points)
+                datasets: [
+                    {
+                        label: 'Gyroscope X',
+                        data: [],
+                        borderColor: 'red',
+                        fill: false,
+                    },
+                    {
+                        label: 'Gyroscope Y',
+                        data: [],
+                        borderColor: 'blue',
+                        fill: false,
+                    },
+                    {
+                        label: 'Gyroscope Z',
+                        data: [],
+                        borderColor: 'green',
+                        fill: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false, // Disable animations for real-time performance
+                scales: {
+                    x: {
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 10 // Adjust as needed
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Angular Velocity (rad/s)'
+                        },
+                        //min: -max_gyro ,
+                        //max: max_gyro   
+                    }
+                }
+            }
+        });
+
+        // Confidence Chart
+        var confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+        var confidenceChart = new Chart(confidenceCtx, {
+            type: 'bar',
+            data: {
+                labels: confidenceLabels,
+                datasets: [{
+                    label: 'Confidence Level (%)',
+                    data: confidenceData,
+                    backgroundColor: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan']
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { title: { display: true, text: 'Confidence Level (%)' }, beginAtZero: true, max: 100 }
+                }
+            }
+        });
+
+        ws.onmessage = function (event) {
+            //console.log("Received data:", event.data);
+
+
+            try {
+                const data = JSON.parse(event.data);
+
+                updateAlertButtons(data.state);
+                console.log(data.state);
+
+
+                if (data.acceleration_x !== undefined) {
+                    const currentTime = new Date().toLocaleTimeString();
+                    accelChart.data.labels.push(currentTime);
+                    gyroChart.data.labels.push(currentTime);
+
+                    accelChart.data.datasets[0].data.push(data.acceleration_x * gToMs2);
+                    accelChart.data.datasets[1].data.push(data.acceleration_y * gToMs2);
+                    accelChart.data.datasets[2].data.push(data.acceleration_z * gToMs2);
+
+                    gyroChart.data.datasets[0].data.push(data.gyroscope_x * degToRad);
+                    gyroChart.data.datasets[1].data.push(data.gyroscope_y * degToRad);
+                    gyroChart.data.datasets[2].data.push(data.gyroscope_z * degToRad);
+
+                    // Keep only the most recent 250 data points
+                    if (accelChart.data.labels.length > 250) {
+                        accelChart.data.labels.shift();
+                        accelChart.data.datasets.forEach(dataset => dataset.data.shift());
+                    }
+                    if (gyroChart.data.labels.length > 250) {
+                        gyroChart.data.labels.shift();
+                        gyroChart.data.datasets.forEach(dataset => dataset.data.shift());
+                    }
+
+                    // Update the charts immediately
+                    accelChart.update('none');
+                    gyroChart.update('none');
+                }
+                if (data.label && data.confidence) {
+                    document.getElementById('current_state').innerHTML = `
+            <h3 class="text-lg font-semibold text-gray-800">Current Activity: ${data.label}</h3>`
+
+                    document.getElementById('confidence_state').innerHTML =
+                        ` <h3 class="text-lg font-semibold text-gray-800" > Confidence: ${data.confidence[data.label] * 100}%</h3>`;
+                    confidenceData.fill(0);
+                    confidenceLabels.forEach((label, index) => {
+                        if (data.confidence[label] !== undefined) {
+                            confidenceData[index] = data.confidence[label] * 100;
+                        }
+                    });
+                    confidenceChart.update();
+                }
+            } catch (e) {
+                console.log("Not a valid JSON message");
+            }
+        };
+
+        document.getElementById('closeButton').addEventListener('click', function () {
+            ws.close();
+            console.log("Connection Closed");
+        });
+
+        // Patient data fetching functions (unchanged)
+        function fetchPatientData() {
+            const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+            let params = new URLSearchParams(window.location.search);
+            // TODO: Jakob: Data can be passed from the server as a template to the html like this:
+            let patientId = params.get("patientId") || "{{ patient.id }}";
+            const url = `${fhirBaseUrl}/Patient/${patientId}`;
+            fetch(url, {
+                method: "GET",
+                headers: { "Accept": "application/fhir+json" }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(patientData => {
+                    console.log("Patient Data:", patientData);
+                    displayPatientData(patientData);
+                })
+                .catch(error => {
+                    console.error("Failed to fetch patient data:", error);
+                });
+        }
+
+        function displayPatientData(patient) {
+            let patientName = "Unknown";
+            if (patient.name && patient.name.length > 0) {
+                const givenNames = patient.name[0].given ? patient.name[0].given.join(" ") : "";
+                const familyName = patient.name[0].family || "";
+                patientName = `${givenNames} ${familyName}`.trim();
+            }
+            const patientIdentifier = patient.id || "Unknown";
+
+            let age = "Unknown";
+            if (patient.birthDate) {
+                const birthDate = new Date(patient.birthDate);
+                const today = new Date();
+                age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+            }
+
+            let addressStr = "Not available";
+            if (patient.address && patient.address.length > 0) {
+                const addr = patient.address[0];
+                addressStr = [addr.line ? addr.line.join(" ") : "", addr.city, addr.state, addr.postalCode, addr.country]
+                    .filter(Boolean).join(", ");
+            }
+
+            const patientInfoDiv = document.getElementById("patient_info");
+            patientInfoDiv.innerHTML = `
+        <div>
+          <h4 class="font-medium text-gray-700">Patient Name:</h4>
+          <p class="text-gray-900">${patientName} </p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Patient ID:</h4>
+          <p class="text-gray-900">${patientIdentifier} - {{ patient.id }}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Age:</h4>
+          <p class="text-gray-900">${age}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Address:</h4>
+          <p id="patient_address" class="text-gray-900">${addressStr}</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Condition:</h4>
+          <p id="patient_condition" class="text-gray-900">Loading...</p>
+        </div>
+        <div>
+          <h4 class="font-medium text-gray-700">Current Medications:</h4>
+          <p id="patient_medications" class="text-gray-900">Loading...</p>
+        </div>
+      `;
+            fetchPatientConditions(patientIdentifier);
+            fetchPatientMedications(patientIdentifier);
+            fetchEventLogs(patientIdentifier);
+        }
+
+        function fetchPatientConditions(patientId) {
+            const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+            const url = `${fhirBaseUrl}/Condition?subject=${patientId}`;
+            fetch(url, {
+                method: "GET",
+                headers: { "Accept": "application/fhir+json" }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    let conditionText = "Not available";
+                    if (data.entry && data.entry.length > 0) {
+                        conditionText = data.entry.map(e => e.resource.code && e.resource.code.text)
+                            .filter(Boolean).join(", ");
+                    }
+                    document.getElementById("patient_condition").textContent = conditionText || "Not available";
+                })
+                .catch(error => {
+                    console.error("Failed to fetch patient conditions:", error);
+                    document.getElementById("patient_condition").textContent = "Error loading conditions";
+                });
+        }
+
+        function fetchPatientMedications(patientId) {
+            const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
+            const url = `${fhirBaseUrl}/MedicationStatement?subject=${patientId}`;
+            fetch(url, {
+                method: "GET",
+                headers: { "Accept": "application/fhir+json" }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    let medText = "Not available";
+                    if (data.entry && data.entry.length > 0) {
+                        medText = data.entry.map(e => {
+                            const med = e.resource.medicationCodeableConcept;
+                            return med && med.text ? med.text : null;
+                        }).filter(Boolean).join(", ");
+                    }
+                    document.getElementById("patient_medications").textContent = medText || "Not available";
+                })
+                .catch(error => {
+                    console.error("Failed to fetch patient medications:", error);
+                    document.getElementById("patient_medications").textContent = "Error loading medications";
+                });
+        }
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
+        }
+
+        function fetchEventLogs() {
+            // Extract the patient ID from the URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const patientId = urlParams.get("patientId") || "unknown";
+
+            // Fetch logs for the specific patient
+            fetch(`/logs?patientId=${patientId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok: " + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Sort events so that the most recent are first
+                    data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // Limit to the three most recent events
+
+                    const eventLogDiv = document.getElementById("event_log");
+                    // Clear previous logs
+                    eventLogDiv.innerHTML = "";
+
+                    data.forEach(entry => {
+                        const logEntry = document.createElement("div");
+                        logEntry.className = "p-4 bg-white rounded-lg shadow border border-gray-200";
+                        logEntry.innerHTML = `
+          <div class="text-sm text-gray-500">${formatTimestamp(entry.timestamp)}</div>
+          <div class="mt-1 text-lg font-bold text-gray-800">${entry.state}</div>
+          <div class="mt-1 text-gray-600">${entry.message}</div>
+        `;
+                        eventLogDiv.appendChild(logEntry);
+                    });
+                })
+                .catch(error => {
+                    console.error("Error fetching event logs:", error);
+                });
+
+        }
+
+        // Global variable to store the cooldown timestamp (in milliseconds)
+        let patientOkCooldownUntil = 0;
+
+        function updateAlertButtons(state) {
+            let container = document.getElementById("alert_buttons");
+
+            if (state === "no_movement") {
+                // Check if we're still in the cooldown period.
+                if (Date.now() < patientOkCooldownUntil) {
+                    console.log("In cooldown period; not displaying alert buttons yet.");
+                    if (container) {
+                        container.remove();
+                    }
+                    return;
+                }
+
+                // Create the container if it doesn't exist.
+                if (!container) {
+                    container = document.createElement("div");
+                    container.id = "alert_buttons";
+                    container.className = "mt-4 space-x-2";
+
+                    container.innerHTML = `
+        <div class="p-4">
+          <button id="alert_112" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 mr-4">
+            Alert 112 (call ambulance)
+          </button>
+          <button id="but_patient_ok" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            Patient is OK (do not call ambulance)
+          </button>
+        </div>
+      `;
+
+                    // Append the container to the desired parent (here, the parent of the "current_state" element).
+                    let parent = document.getElementById("current_state").parentElement;
+                    parent.appendChild(container);
+
+                    // Event listener for "Patient is OK" button
+                    document.getElementById("but_patient_ok").addEventListener("click", function () {
+                        container.remove();
+                        // Set a cooldown for 100 seconds (100,000 ms)
+                        patientOkCooldownUntil = Date.now() + 100 * 1000;
+                        console.log("Patient confirmed OK. Removing alert buttons and starting cooldown for 100 seconds.");
+                    });
+
+                    // Event listener for "Alert 112" button
+                    document.getElementById("alert_112").addEventListener("click", function () {
+                        console.log("Alert 112 triggered. Ambulance will be called.");
+                        // Replace the button area with a text message
+                        container.innerHTML = `<div class="p-4 text-red-600 font-bold">Alert 112 triggered. Ambulance will be called.</div>`;
+                    });
+                }
+            } else {
+                // Remove the container if state is not "no_movement"
+                if (container) {
+                    container.remove();
+                }
+            }
+        }
+
+
+        fetchPatientData();
+        fetchEventLogs(patientId);
+    </script>
+</body>
+
+</html>

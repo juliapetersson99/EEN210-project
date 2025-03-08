@@ -114,7 +114,10 @@ async def callback(request: Request):
 
     # Handle the callback and exchange the authorization code for an access token
     print(code)
-    smart.handle_callback(str(request.url))
+    ret = smart.handle_callback(str(request.url))
+
+    print(ret)
+    print(smart.server.auth.access_token)
     patient = smart.patient
     if patient:
         # Fetch patient information

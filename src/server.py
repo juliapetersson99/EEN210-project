@@ -1,11 +1,14 @@
 import os
 import json
 import uvicorn
-from fastapi import FastAPI, WebSocket, Query, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, WebSocket, Query, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 import time
+from fhirclient import client
+
 
 # Local imports
 from alert import ConsoleNotifier
@@ -25,11 +28,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Smart Setup
+
+# Initialize the FHIR client
+
+SMART_BASE_URL = "https://gw.interop.community/testjulle/data"
+SMART_APP_ID = "340a7665-fc24-4db8-9f90-dc3e06eddc90"
+smart_settings = {
+    "app_id": SMART_APP_ID,
+    "client_id": SMART_APP_ID,
+    "api_base": SMART_BASE_URL,
+    "aud": SMART_BASE_URL,
+    "redirect_uri": "http://localhost:8000/callback",
+    "scope": "launch openid profile patient/*.rs",
+}
+smart = client.FHIRClient(settings=smart_settings)
+smart_access_token = None
+patient = None
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_dir = os.path.join(current_dir, "static")
-html_path = os.path.join(current_dir, "UI_bars.html")
-with open(html_path, "r") as f:
-    html = f.read()
+template_dir = os.path.join(current_dir, "templates")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+templates = Jinja2Templates(directory=template_dir)
 
 # Variables for processing data (depends on processing power)
 window = 100
@@ -45,6 +66,57 @@ websocket_manager = WebSocketManager()
 model, scaler, feature_cols = load_model("final_model")
 
 
+@app.get("/")
+async def get(request: Request):
+    if patient:
+        return templates.TemplateResponse(
+            name="dashboard.html",
+            request=request,
+            context={
+                "patient": patient,
+                "access_token": smart_access_token,
+                "base_url": SMART_BASE_URL,
+            },
+        )
+    return "No patient data available. Please log in with the EHR system."
+
+
+@app.get("/launch")
+async def launch(request: Request):
+    global smart
+    # Authorize the user
+    launch = request.query_params.get("launch")
+    if not launch:
+        return "No launch token provided. Please log in with the EHR system."
+
+    # Create a new SMART client with the launch token
+    new_settings = {"launch_token": launch, **smart_settings}
+    smart = client.FHIRClient(settings=new_settings)
+
+    auth_url = smart.authorize_url
+    return RedirectResponse(url=auth_url)
+
+
+# Callback url for the OAuth2 authorization
+@app.get("/callback")
+async def callback(request: Request):
+    global smart_access_token, patient
+    # Extract code from query parameters
+    code = request.query_params.get("code")
+    if not code:
+        return "Authorization failed"
+
+    # Handle token exachange
+    smart.handle_callback(str(request.url))
+
+    # Store Access Token
+    smart_access_token = smart.server.auth.access_token
+    # Fetch patient data
+    patient = smart.patient
+
+    return RedirectResponse(url="/")
+
+
 @app.get("/logs")
 def get_logs(patientId: str = Query(...)):
     # Retrieve logs for the given patient
@@ -52,17 +124,9 @@ def get_logs(patientId: str = Query(...)):
     return events
 
 
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
 @app.get("/main.css")
 async def get_css():
     return FileResponse(os.path.join(static_dir, "main.css"))
-
-
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
 
 
 @app.websocket("/ws")
