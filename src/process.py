@@ -68,64 +68,62 @@ class DataProcessor:
                 print("Baseline calculated:")
                 print(self.baseline)
                 # TODO: Why the sleep?
-                #time.sleep(2)
+                # time.sleep(2)
             return None
 
         # If baseline has been calculated, adjust the sensor readings and start sending data
-        #data_row = data_row - self.baseline
-        
+        # data_row = data_row - self.baseline
+
         # store the updated values in the json
         json_data = data_row.to_dict()
- 
-        scaled_data = self.scaler.transform(pd.DataFrame([json_data] , columns=SENSOR_COLS))
 
-
-        
-        scaled_data = scaled_data.squeeze(axis=0)
-        # Convert numpy array to pandas Series for indexed access
-        scaled_data = pd.Series(scaled_data, index=SENSOR_COLS)
-
-        
         # add data to the rolling stats
-        self.rolling_stats.update(scaled_data)
-            
-        # compute magnitudes
-        accel_magnitude = np.sqrt(
-            scaled_data["acceleration_x"] ** 2
-            + scaled_data["acceleration_y"] ** 2
-            + scaled_data["acceleration_z"] ** 2
-        )
-        gyro_magnitude = np.sqrt(
-            scaled_data["gyroscope_x"] ** 2
-            + scaled_data["gyroscope_y"] ** 2
-            + scaled_data["gyroscope_z"] ** 2
-        )
-
-        # rename columns of previous distribution to _prev
-        prev_labels = (
-            {f"prev_{k}": v for k, v in self.prev_label_distribution.items()}
-            if self.prev_label_distribution is not None
-            else {f"prev_{l}": 0 for l in POSSIBLE_LABELS}
-        )
-
-        feature_row = pd.DataFrame(
-            {
-                "acceleration_magnitude": accel_magnitude,
-                "gyroscope_magnitude": gyro_magnitude,
-                **scaled_data[SENSOR_COLS].to_dict(),
-                **self.rolling_stats.mean_labeled(),
-                **self.rolling_stats.std_labeled(),
-                **self.rolling_stats.min_labeled(),
-                **self.rolling_stats.max_labeled(),
-                **prev_labels,
-            },
-            index=[0],
-        )[self.feature_cols]
+        self.rolling_stats.update(data_row)
 
         label_dist = None
         # every predict_interval times, make a prediction
-        if label_dist is None or self.total_measurements % self.predict_interval == 0:
-            label_dist = predict(self.model, feature_row)
+        if (
+            self.prev_label_distribution is None
+            or self.total_measurements % self.predict_interval == 0
+        ):
+            # compute magnitudes
+            accel_magnitude = np.sqrt(
+                data_row["acceleration_x"] ** 2
+                + data_row["acceleration_y"] ** 2
+                + data_row["acceleration_z"] ** 2
+            )
+            gyro_magnitude = np.sqrt(
+                data_row["gyroscope_x"] ** 2
+                + data_row["gyroscope_y"] ** 2
+                + data_row["gyroscope_z"] ** 2
+            )
+
+            # rename columns of previous distribution to _prev
+            prev_labels = (
+                {f"prev_{k}": v for k, v in self.prev_label_distribution.items()}
+                if self.prev_label_distribution is not None
+                else {f"prev_{l}": 0 for l in POSSIBLE_LABELS}
+            )
+
+            feature_row = pd.DataFrame(
+                {
+                    "acceleration_magnitude": accel_magnitude,
+                    "gyroscope_magnitude": gyro_magnitude,
+                    **data_row[SENSOR_COLS].to_dict(),
+                    **self.rolling_stats.mean_labeled(),
+                    **self.rolling_stats.std_labeled(),
+                    **self.rolling_stats.min_labeled(),
+                    **self.rolling_stats.max_labeled(),
+                    **prev_labels,
+                },
+                index=[0],
+            )[self.feature_cols]
+
+            scaled_data = pd.DataFrame(
+                self.scaler.transform(feature_row), columns=self.feature_cols
+            )
+
+            label_dist = predict(self.model, scaled_data)
             self.label_memory.update(label_dist)
         else:
             label_dist = self.prev_label_distribution
@@ -139,6 +137,7 @@ class DataProcessor:
             # Calculate the weighted average distribution of the last labels
             avg_label_dist = self.label_memory.averaged_current_label()
             mode_label = self.label_memory.mode()
+            self.prev_label_distribution = avg_label_dist
 
             json_data["confidence"] = avg_label_dist.to_dict()
             json_data["label"] = mode_label

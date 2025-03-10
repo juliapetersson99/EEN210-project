@@ -26,6 +26,20 @@ def encode_prev_labels(data_frame):
     return data_frame
 
 
+def predict_proba(model, input_data):
+    input_df = (
+        input_data.to_frame().T if isinstance(input_data, pd.Series) else input_data
+    )
+
+    if "prev_label" in input_df.columns:
+        input_df = encode_prev_labels(input_df)
+
+    dist = model.predict_proba(input_df)
+    labeled_dist = dict(zip(model.classes_, dist[0]))
+
+    return labeled_dist
+
+
 def predict(model, input_data):
     input_df = (
         input_data.to_frame().T if isinstance(input_data, pd.Series) else input_data
@@ -34,14 +48,8 @@ def predict(model, input_data):
     if "prev_label" in input_df.columns:
         input_df = encode_prev_labels(input_df)
 
-    #dist = model.predict_proba(input_df)
-    #labeled_dist = dict(zip(model.classes_, dist[0]))
-
     labeled_dist = {k: 0 for k in POSSIBLE_LABELS}
-    label = model.predict(input_df)
+    label = model.predict(input_df)[0]
     labeled_dist[label] = 1
 
     return pd.Series(labeled_dist)
-    # df = add_features(input_df)
-    # use last row as input for prediction
-    # return model.predict(df[-1])

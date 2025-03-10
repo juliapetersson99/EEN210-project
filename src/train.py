@@ -9,41 +9,52 @@ from common import SENSOR_COLS, POSSIBLE_LABELS
 
 
 def add_features(data_frame, rolling_size):
+    # Create a copy to avoid modifying the original
+    result_df = data_frame.copy()
 
     # add last two data points per window aswell
     data_types = ["acceleration", "gyroscope"]
     dimensions = ["x", "y", "z"]
-    columns = set(data_frame.columns)
+    columns = set(result_df.columns)
     for data_type in data_types:
         for dimension in dimensions:
             column_name = f"{data_type}_{dimension}"
-            data = data_frame[column_name]
+            data = result_df[column_name]
 
-            data_frame[f"{column_name}_mean"] = data.rolling(window=rolling_size).mean()
-            data_frame[f"{column_name}_max"] = data.rolling(window=rolling_size).max()
-            data_frame[f"{column_name}_min"] = data.rolling(window=rolling_size).min()
-            data_frame[f"{column_name}_std"] = data.rolling(window=rolling_size).std()
-            # data_frame[f"{column_name}_median"] = data.rolling(
+            # Calculate rolling window features
+            result_df[f"{column_name}_mean"] = data.rolling(
+                window=rolling_size, min_periods=1
+            ).mean()
+            result_df[f"{column_name}_max"] = data.rolling(
+                window=rolling_size, min_periods=1
+            ).max()
+            result_df[f"{column_name}_min"] = data.rolling(
+                window=rolling_size, min_periods=1
+            ).min()
+            result_df[f"{column_name}_std"] = data.rolling(
+                window=rolling_size, min_periods=1
+            ).std()
+            # result_df[f"{column_name}_median"] = data.rolling(
             #     window=rolling_size
             # ).median()
 
-        data_frame[f"{data_type}_magnitude"] = np.sqrt(
-            data_frame[f"{data_type}_x"] ** 2
-            + data_frame[f"{data_type}_y"] ** 2
-            + data_frame[f"{data_type}_z"] ** 2
+        result_df[f"{data_type}_magnitude"] = np.sqrt(
+            result_df[f"{data_type}_x"] ** 2
+            + result_df[f"{data_type}_y"] ** 2
+            + result_df[f"{data_type}_z"] ** 2
         )
 
-    if "prev_label" not in data_frame.columns and "label" in data_frame.columns:
+    if "prev_label" not in result_df.columns and "label" in result_df.columns:
         # Get all unique labels
 
-        labels = data_frame["label"]
+        labels = result_df["label"]
 
         for l in POSSIBLE_LABELS:
-            data_frame[f"prev_{l}"] = 0
+            result_df[f"prev_{l}"] = 0
 
         counts = {}
 
-        for i in range(len(data_frame)):
+        for i in range(len(result_df)):
             # Update window counts
             new_val = labels.iloc[i]
             if pd.notna(new_val):
@@ -56,30 +67,28 @@ def add_features(data_frame, rolling_size):
             # Set mode if window is complete
             if counts and i >= rolling_size - 1:
                 mode_val = max(counts, key=counts.get)
-                data_frame.loc[i, f"prev_{mode_val}"] = 1
+                idx = result_df.index[i]
+                result_df.loc[idx, f"prev_{mode_val}"] = 1
 
-    addedColumns = set(data_frame.columns) - columns
-    return data_frame.iloc[rolling_size:], list(addedColumns)
+    addedColumns = set(result_df.columns) - columns
+    return result_df.iloc[rolling_size:], list(addedColumns)
 
 
 def preprocess_file(path: str, window_size=100):
     df = pd.read_csv(path)
     df = df.ffill()
     df = df.dropna()
-    print(df)
-
-    print(df[df.isna().any(axis=1)])
-    #df = df[df.label != "none"].dropna()
+    # df = df[df.label != "none"].dropna()
 
     # Calculate the baseline as the mean of the first 20 data points for each sensor column
-    #baseline = df[SENSOR_COLS].head(50).mean()
+    # baseline = df[SENSOR_COLS].head(50).mean()
     # Subtract the baseline from the sensor columns, for the file, so 0 represents the still state
-    #df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
+    # df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
 
     # Separate features (sensor data) and labels
     X = df[SENSOR_COLS]
-    #min_max_scaler = MinMaxScaler()
-    #arr_scaled = min_max_scaler.fit_transform(X)
+    # min_max_scaler = MinMaxScaler()
+    # arr_scaled = min_max_scaler.fit_transform(X)
     X = pd.DataFrame(X, columns=X.columns)
 
     # feature engineering
@@ -93,8 +102,8 @@ def preprocess_file(path: str, window_size=100):
 
 def train_model(X, y, window=100, settings=dict(n_estimators=100, max_depth=20)):
     clf = RandomForestClassifier(**settings)
-    #print(X[X.isna().any(axis=1)])    
-    #print(y)
+    # print(X[X.isna().any(axis=1)])
+    # print(y)
     clf.fit(X, y)
     return clf
 
@@ -165,7 +174,6 @@ def cross_validation_testing(
     # Read and preprocess all CSV files
     data = list(map(preprocess_file, csv_files))
     X, y, _ = zip(*data)
-    #print(X[X.isna().any(axis=1)])
 
     mean_accuracy = 0
     mean_mse = 0
@@ -228,7 +236,6 @@ def train_final_model(
     # join all the data
     X, y, dfs = zip(*data)
 
-
     print("Training Scaler")
     # train a scaler with the raw data
     # combined_df = pd.concat(dfs, ignore_index=True)[SENSOR_COLS]
@@ -238,14 +245,12 @@ def train_final_model(
     y = pd.concat(y)
 
     min_max_scaler = MinMaxScaler()
-    X[SENSOR_COLS] = min_max_scaler.fit_transform(X[SENSOR_COLS])
+    X = pd.DataFrame(min_max_scaler.fit_transform(X), columns=X.columns)
 
     # shuffle the data
     idx = np.random.permutation(len(X))
     X = X.iloc[idx]
     y = y.iloc[idx]
-
-    print(X.columns)
 
     clf = train_model(X, y, settings=model_settings)
     print("Model trained")
