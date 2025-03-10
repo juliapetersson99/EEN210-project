@@ -47,13 +47,13 @@ smart_access_token = None
 patient = None
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-static_dir = os.path.join(current_dir, "static")
+#static_dir = os.path.join(current_dir, "static")
 template_dir = os.path.join(current_dir, "templates")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+#app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=template_dir)
 
 # Variables for processing data (depends on processing power)
-window = 100
+window = 50
 send_interval = 6  # Define the interval for sending data
 predict_interval = 2
 

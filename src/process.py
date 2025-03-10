@@ -68,30 +68,37 @@ class DataProcessor:
                 print("Baseline calculated:")
                 print(self.baseline)
                 # TODO: Why the sleep?
-                time.sleep(2)
+                #time.sleep(2)
             return None
 
         # If baseline has been calculated, adjust the sensor readings and start sending data
-        data_row = data_row - self.baseline
-        # scale with trained scaler
-        # scaled_data = self.scaler.transform(data_row)
-
-        # add data to the rolling stats
-        self.rolling_stats.update(data_row)
-
+        #data_row = data_row - self.baseline
+        
         # store the updated values in the json
-        json_data = {**data_row.to_dict()}
+        json_data = data_row.to_dict()
+ 
+        scaled_data = self.scaler.transform(pd.DataFrame([json_data] , columns=SENSOR_COLS))
 
+
+        
+        scaled_data = scaled_data.squeeze(axis=0)
+        # Convert numpy array to pandas Series for indexed access
+        scaled_data = pd.Series(scaled_data, index=SENSOR_COLS)
+
+        
+        # add data to the rolling stats
+        self.rolling_stats.update(scaled_data)
+            
         # compute magnitudes
         accel_magnitude = np.sqrt(
-            data_row["acceleration_x"] ** 2
-            + data_row["acceleration_y"] ** 2
-            + data_row["acceleration_z"] ** 2
+            scaled_data["acceleration_x"] ** 2
+            + scaled_data["acceleration_y"] ** 2
+            + scaled_data["acceleration_z"] ** 2
         )
         gyro_magnitude = np.sqrt(
-            data_row["gyroscope_x"] ** 2
-            + data_row["gyroscope_y"] ** 2
-            + data_row["gyroscope_z"] ** 2
+            scaled_data["gyroscope_x"] ** 2
+            + scaled_data["gyroscope_y"] ** 2
+            + scaled_data["gyroscope_z"] ** 2
         )
 
         # rename columns of previous distribution to _prev
@@ -105,7 +112,7 @@ class DataProcessor:
             {
                 "acceleration_magnitude": accel_magnitude,
                 "gyroscope_magnitude": gyro_magnitude,
-                **data_row[SENSOR_COLS].to_dict(),
+                **scaled_data[SENSOR_COLS].to_dict(),
                 **self.rolling_stats.mean_labeled(),
                 **self.rolling_stats.std_labeled(),
                 **self.rolling_stats.min_labeled(),

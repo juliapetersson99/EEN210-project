@@ -2,17 +2,18 @@ import time
 from alert import AlertNotifier
 
 
-# Mapping your alert scenarios to ICD10C codes.
+#  codes.
+# W19 - Unspecified fall
 ALERT_CODES = {
-    "fall_notification": "ICD10C_FALL",
-    "person_safe": "ICD10C_SAFE",
-    "no_movement": "ICD10C_NO_MOVE",
-    "extended_inactivity": "ICD10C_EXT_INACT"  
+    "fall_notification": "W19",
+    "person_safe": "SAFE",
+    "no_movement": "NO_MOVE",
+    "extended_inactivity": "EXT_INACT"  
 }
 
 class FallDetectionStateMonitor:
     def __init__(self, notifier: AlertNotifier, storage = None, patient_id = None):
-        self.current_state = "normal"  # initial state
+        self.current_state = "normal"  #initial state
         self.notifier = notifier
         self.last_fall_timestamp = None
         self.inactivity_start = None 
@@ -28,7 +29,7 @@ class FallDetectionStateMonitor:
         if predicted_label not in ["sitting", "standing"]:
             self.inactivity_start = None
 
-        # Fall detection: transition from normal to fall notification.
+        #Fall detection: transition from normal to fall notification.
         if predicted_label == "falling" and self.current_state == "normal":
             self.current_state = "fall_notification"
             self.last_fall_timestamp = current_time

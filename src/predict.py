@@ -34,8 +34,12 @@ def predict(model, input_data):
     if "prev_label" in input_df.columns:
         input_df = encode_prev_labels(input_df)
 
-    dist = model.predict_proba(input_df)
-    labeled_dist = dict(zip(model.classes_, dist[0]))
+    #dist = model.predict_proba(input_df)
+    #labeled_dist = dict(zip(model.classes_, dist[0]))
+
+    labeled_dist = {k: 0 for k in POSSIBLE_LABELS}
+    label = model.predict(input_df)
+    labeled_dist[label] = 1
 
     return pd.Series(labeled_dist)
     # df = add_features(input_df)

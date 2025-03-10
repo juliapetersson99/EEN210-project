@@ -64,18 +64,23 @@ def add_features(data_frame, rolling_size):
 
 def preprocess_file(path: str, window_size=100):
     df = pd.read_csv(path)
-    df = df[df.label != "none"].dropna()
+    df = df.ffill()
+    df = df.dropna()
+    print(df)
+
+    print(df[df.isna().any(axis=1)])
+    #df = df[df.label != "none"].dropna()
 
     # Calculate the baseline as the mean of the first 20 data points for each sensor column
-    baseline = df[SENSOR_COLS].head(50).mean()
+    #baseline = df[SENSOR_COLS].head(50).mean()
     # Subtract the baseline from the sensor columns, for the file, so 0 represents the still state
-    df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
+    #df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
 
     # Separate features (sensor data) and labels
     X = df[SENSOR_COLS]
-    min_max_scaler = MinMaxScaler()
-    arr_scaled = min_max_scaler.fit_transform(X)
-    X = pd.DataFrame(arr_scaled, columns=X.columns)
+    #min_max_scaler = MinMaxScaler()
+    #arr_scaled = min_max_scaler.fit_transform(X)
+    X = pd.DataFrame(X, columns=X.columns)
 
     # feature engineering
     X["label"] = pd.Categorical(df["label"])
@@ -88,6 +93,8 @@ def preprocess_file(path: str, window_size=100):
 
 def train_model(X, y, window=100, settings=dict(n_estimators=100, max_depth=20)):
     clf = RandomForestClassifier(**settings)
+    #print(X[X.isna().any(axis=1)])    
+    #print(y)
     clf.fit(X, y)
     return clf
 
@@ -158,6 +165,7 @@ def cross_validation_testing(
     # Read and preprocess all CSV files
     data = list(map(preprocess_file, csv_files))
     X, y, _ = zip(*data)
+    #print(X[X.isna().any(axis=1)])
 
     mean_accuracy = 0
     mean_mse = 0
@@ -220,16 +228,17 @@ def train_final_model(
     # join all the data
     X, y, dfs = zip(*data)
 
+
     print("Training Scaler")
     # train a scaler with the raw data
-    combined_df = pd.concat(dfs, ignore_index=True)[SENSOR_COLS]
-    min_max_scaler = MinMaxScaler()
-    min_max_scaler.fit(combined_df)
-
+    # combined_df = pd.concat(dfs, ignore_index=True)[SENSOR_COLS]
     print("Training model")
     # join data
     X = pd.concat(X)
     y = pd.concat(y)
+
+    min_max_scaler = MinMaxScaler()
+    X[SENSOR_COLS] = min_max_scaler.fit_transform(X[SENSOR_COLS])
 
     # shuffle the data
     idx = np.random.permutation(len(X))
