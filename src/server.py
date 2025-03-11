@@ -47,9 +47,10 @@ smart_access_token = None
 patient = None
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# static_dir = os.path.join(current_dir, "static")
+
 template_dir = os.path.join(current_dir, "templates")
-# app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
 templates = Jinja2Templates(directory=template_dir)
 
 # Variables for processing data (depends on processing power)
@@ -72,6 +73,7 @@ async def get(request: Request):
         # Fetch patient data
         patient.conditions = fetch_conditions(smart, patient)
         patient.medications = fetch_medications(smart, patient)
+    
 
     # use demo patient if no real patient is available
     displayPatient = patient or demo_patient()
@@ -140,10 +142,10 @@ async def get_css():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global current_label, window, send_interval, predict_interval
-    patient_id = websocket.query_params.get("patientId", "unknown")
-
-    # TODO: spelling mistake ;)
-    state_monitor.set_patinet_id(patient_id)
+    if patient:
+        patient_id = patient.id
+        state_monitor.set_patient_id(patient_id)
+    #print(patient.id)
 
     data_processor = DataProcessor(
         state_monitor,

@@ -5,7 +5,7 @@ import glob
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import random
-from common import SENSOR_COLS, POSSIBLE_LABELS
+from common import SENSOR_COLS, POSSIBLE_LABELS, ADJUST_W_BASELINE
 
 
 def add_features(data_frame, rolling_size):
@@ -76,23 +76,23 @@ def add_features(data_frame, rolling_size):
 
 def preprocess_file(path: str, window_size=100):
     df = pd.read_csv(path)
-    df = df.ffill()
-    df = df.dropna()
     # df = df[df.label != "none"].dropna()
 
     # Calculate the baseline as the mean of the first 20 data points for each sensor column
-    # baseline = df[SENSOR_COLS].head(50).mean()
+    baseline = df[ADJUST_W_BASELINE].head(20).mean()
     # Subtract the baseline from the sensor columns, for the file, so 0 represents the still state
     # df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
+    #print(baseline)
 
-    # Separate features (sensor data) and labels
+    df = df.ffill()
+    df = df.dropna()
     X = df[SENSOR_COLS]
-    # min_max_scaler = MinMaxScaler()
-    # arr_scaled = min_max_scaler.fit_transform(X)
+    
+    X[ADJUST_W_BASELINE] = X[ADJUST_W_BASELINE] - baseline
     X = pd.DataFrame(X, columns=X.columns)
 
     # feature engineering
-    X["label"] = pd.Categorical(df["label"])
+    X["label"] = pd.Categorical(df["label"], categories=POSSIBLE_LABELS, ordered=True)
     X, new_features = add_features(X, window_size)
     Y = X["label"]
     X = X.drop("label", axis=1)
@@ -311,5 +311,9 @@ def train_final_model(
     print("Training stats:")
     validate_model(clf, X, y)
 
-
-# train_final_model(folder="clean_data")
+train_final_model(folder="clean_data")
+#for n_estimators in [50, 100, 200]:
+#  for max_depth in [10, 20, 30]:
+#        print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")
+#        model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
+#        cross_validation_testing(model_settings=model_settings, folder="clean_data")

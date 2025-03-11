@@ -1,6 +1,6 @@
 from state_monitor import FallDetectionStateMonitor
 from memory import RollingStats, LabelMemory
-from common import SENSOR_COLS, POSSIBLE_LABELS
+from common import SENSOR_COLS, POSSIBLE_LABELS, ADJUST_W_BASELINE
 from predict import predict_proba as predict
 import pandas as pd
 import numpy as np
@@ -62,8 +62,10 @@ class DataProcessor:
             self.rolling_stats.update(data_row)
 
             if self.rolling_stats.size() >= 10:
-                # Compute the baseline averages
-                self.baseline = self.rolling_stats.mean()
+                # Compute the baseline averages for only the ADJUST_W_BASELINE columns
+                baseline_all = self.rolling_stats.mean()          # returns an ndarray
+                baseline_series = pd.Series(baseline_all, index=self.rolling_stats.columns)
+                self.baseline = baseline_series[ADJUST_W_BASELINE].astype("int64")  # filter only the desired columns
                 self.rolling_stats.clear()
                 print("Baseline calculated:")
                 print(self.baseline)
@@ -71,8 +73,11 @@ class DataProcessor:
                 # time.sleep(2)
             return None
 
-        # If baseline has been calculated, adjust the sensor readings and start sending data
-        # data_row = data_row - self.baseline
+        # Adjust only the specified columns in ADJUST_W_BASELINE
+
+        # Now adjust the values by subtracting the baseline (which should already be float64)
+        for col in ADJUST_W_BASELINE:
+            data_row[col] = float(data_row[col] - self.baseline[col])
 
         # store the updated values in the json
         json_data = data_row.to_dict()
@@ -144,12 +149,16 @@ class DataProcessor:
 
             self.state_monitor.update_state(mode_label)
             json_data["state"] = self.state_monitor.current_state
+            json_data["state_patient_id"] = self.state_monitor.patient_id
             # send a flag to update the logs in history and alert the user
-            if self.state_monitor.current_state == [
+            if self.state_monitor.current_state in [
                 "no_movement",
                 "fall_notification",
+                "person_safe"
             ]:
                 json_data["update_logs"] = True
+            else:
+                json_data["update_logs"] =  False
             return json_data
         # do not respond with json_data
         return None

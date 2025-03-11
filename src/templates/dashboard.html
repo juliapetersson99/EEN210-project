@@ -109,6 +109,7 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
+
         const patientId = urlParams.get("patientId") || "{{ patient.id }}";
 
         var ws = new WebSocket("ws://localhost:8000/ws?patientId=" + patientId);
@@ -120,6 +121,8 @@
         const gToMs2 = 9.81;
         const raw_to_ms2 = 9.81/4096; // 
         const degToRad = Math.PI / 180;
+
+
         //const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
         //const max_gyro = 500
 
@@ -250,9 +253,14 @@
 
             try {
                 const data = JSON.parse(event.data);
-
+                //console.log(data.update_logs);
+                
+                if (data.update_logs === true) {
+                    fetchEventLogs();
+                }
                 updateAlertButtons(data.state);
                 console.log(data.state);
+                //console.log(data.update_logs);
 
 
                 if (data.acceleration_x !== undefined) {
@@ -461,7 +469,8 @@
         function fetchEventLogs() {
             // Extract the patient ID from the URL parameters
             const urlParams = new URLSearchParams(window.location.search);
-            const patientId = urlParams.get("patientId") || "unknown";
+            const patientId = urlParams.get("patientId") || "{{ patient.id }}";
+            console.log("Fetching event logs for patient ID:", patientId);
 
             // Fetch logs for the specific patient
             fetch(`/logs?patientId=${patientId}`)
@@ -485,9 +494,10 @@
                         logEntry.className = "p-4 bg-white rounded-lg shadow border border-gray-200";
                         logEntry.innerHTML = `
           <div class="text-sm text-gray-500">${formatTimestamp(entry.timestamp)}</div>
-          <div class="mt-1 text-lg font-bold text-gray-800">${entry.state}</div>
+          <div class="mt-1 text-lg font-bold text-gray-800">${entry.code} </div>
           <div class="mt-1 text-gray-600">${entry.message}</div>
         `;
+                        
                         eventLogDiv.appendChild(logEntry);
                     });
                 })

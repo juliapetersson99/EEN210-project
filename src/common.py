@@ -9,6 +9,12 @@ SENSOR_COLS = [
     "gyroscope_z",
 ]
 
+ADJUST_W_BASELINE = [
+    "acceleration_x",
+    "acceleration_y",
+    "acceleration_z"
+]
+
 POSSIBLE_LABELS = [
     "falling",
     "walking",
