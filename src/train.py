@@ -100,7 +100,7 @@ def preprocess_file(path: str, window_size=100):
     return X, Y, df
 
 
-def train_model(X, y, window=100, settings=dict(n_estimators=100, max_depth=20)):
+def train_model(X, y, settings=dict(n_estimators=100, max_depth=20)):
     clf = RandomForestClassifier(**settings)
     # print(X[X.isna().any(axis=1)])
     # print(y)
@@ -133,7 +133,9 @@ def validate_model(clf, X_test, y_test):
     print("Confusion matrix")
     print(confusion_matrix)
     # normalize the confusion matrix
-    norm_confusion_matrix = confusion_matrix / confusion_matrix.sum(axis=0)
+    norm_confusion_matrix = confusion_matrix.div(
+        confusion_matrix.sum(axis=0), axis=1
+    ).fillna(0)
     print("Normalized confusion matrix")
     print(norm_confusion_matrix)
 
@@ -165,16 +167,18 @@ def validate_model(clf, X_test, y_test):
 
 
 def cross_validation_testing(
-    model_settings=dict(n_estimators=100, max_depth=20), folder="data", num_folds=5
+    model_settings=dict(n_estimators=100, max_depth=20),
+    folder="data",
+    num_folds=5,
+    window_size=100,
 ):
     csv_files = glob.glob(f"{folder}/*.csv")
     # randomize the order of the files
     random.shuffle(csv_files)
 
     # Read and preprocess all CSV files
-    data = list(map(preprocess_file, csv_files))
+    data = list(map(lambda f: preprocess_file(f, window_size=window_size), csv_files))
     X, y, _ = zip(*data)
-
 
     mean_accuracy = 0
     mean_mse = 0
@@ -194,7 +198,9 @@ def cross_validation_testing(
         X_train = pd.concat(X[:start] + X[end:])
         y_train = pd.concat(y[:start] + y[end:])
 
-        X_train = pd.DataFrame(min_max_scaler.fit_transform(X_train), columns=X_train.columns)
+        X_train = pd.DataFrame(
+            min_max_scaler.fit_transform(X_train), columns=X_train.columns
+        )
         X_test = pd.DataFrame(min_max_scaler.transform(X_test), columns=X_test.columns)
 
         # shuffle the data (works because we have no temporal dependencies in the model itself)
@@ -212,12 +218,15 @@ def cross_validation_testing(
         mean_mse += mse
         mean_confusion_matrix += confusion_matrix
 
-    print(f"Mean accuracy: {mean_accuracy / num_folds}")
-    print(f"Mean MSE: {mean_mse / num_folds}")
+    mean_accuracy /= num_folds
+    mean_mse /= num_folds
+    mean_confusion_matrix /= num_folds
+
+    print(f"Mean accuracy: {mean_accuracy}")
+    print(f"Mean MSE: {mean_mse}")
     print("Mean confusion matrix")
-    print(mean_confusion_matrix / num_folds)
-
-
+    print(mean_confusion_matrix)
+    return mean_accuracy, mean_confusion_matrix, mean_mse
 
 
 # cross_validation_testing()
@@ -227,6 +236,38 @@ def cross_validation_testing(
 #     cross_validation_testing(model_settings=dict(n_estimators=n, max_depth=20))
 
 # cross_validation_testing(folder="clean_data")
+
+metrics_data = []
+
+for n_estimators in [50, 100, 200]:
+    for max_depth in [10, 15, 20]:
+        for window_size in [20, 50, 100, 200]:
+            print(
+                f"Testing with n_estimators={n_estimators}, window={window_size} and max_depth={max_depth}"
+            )
+            model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
+            acc, confusion_matrix, mean_mse = cross_validation_testing(
+                model_settings=model_settings,
+                folder="clean_data",
+                window_size=window_size,
+            )
+            metrics_data.append(
+                {
+                    "n_estimators": n_estimators,
+                    "max_depth": max_depth,
+                    "window": window_size,
+                    "accuracy": acc,
+                    "mse": mean_mse,
+                    **{
+                        f"{l}_correct": confusion_matrix.loc[l, l]
+                        for l in POSSIBLE_LABELS
+                    },
+                }
+            )
+
+metrics_df = pd.DataFrame(metrics_data)
+metrics_df.to_csv("cv_metrics.csv", index=False)
+
 
 # %% Train model
 
@@ -270,9 +311,5 @@ def train_final_model(
     print("Training stats:")
     validate_model(clf, X, y)
 
-train_final_model(folder="clean_data")
-#for n_estimators in [50, 100, 200]:
- #   for max_depth in [10, 20, 30]:
- #       print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")
- #       model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
- #       cross_validation_testing(model_settings=model_settings, folder="clean_data")
+
+# train_final_model(folder="clean_data")
