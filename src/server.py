@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 import time
 from fhirclient import client
-
+from fhir import fetch_conditions, fetch_medications, demo_patient
 
 # Local imports
 from alert import ConsoleNotifier
@@ -47,9 +47,9 @@ smart_access_token = None
 patient = None
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-#static_dir = os.path.join(current_dir, "static")
+# static_dir = os.path.join(current_dir, "static")
 template_dir = os.path.join(current_dir, "templates")
-#app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=template_dir)
 
 # Variables for processing data (depends on processing power)
@@ -69,16 +69,24 @@ model, scaler, feature_cols = load_model("final_model")
 @app.get("/")
 async def get(request: Request):
     if patient:
-        return templates.TemplateResponse(
-            name="dashboard.html",
-            request=request,
-            context={
-                "patient": patient,
-                "access_token": smart_access_token,
-                "base_url": SMART_BASE_URL,
-            },
-        )
-    return "No patient data available. Please log in with the EHR system."
+        # Fetch patient data
+        patient.conditions = fetch_conditions(smart, patient)
+        patient.medications = fetch_medications(smart, patient)
+
+    # use demo patient if no real patient is available
+    displayPatient = patient or demo_patient()
+
+    print(displayPatient.as_json())
+
+    return templates.TemplateResponse(
+        name="dashboard.html",
+        request=request,
+        context={
+            "patient": displayPatient,
+            "access_token": smart_access_token,
+            "base_url": SMART_BASE_URL,
+        },
+    )
 
 
 @app.get("/launch")

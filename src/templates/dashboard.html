@@ -10,59 +10,72 @@
 </head>
 
 <body class="bg-gray-50">
-    <main class="py-24 sm:py-32">
-        <div class="mx-auto px-6 lg:px-8" style="max-width: 90rem">
+    <main>
+        <div class="mx-auto px-6 lg:px-8">
 
             <!-- Main Header -->
-            <header class="bg-white shadow-lg rounded-xl p-6 flex justify-between items-center">
-                <h1 class="text-3xl font-bold text-gray-900">Real-time Data Collection</h1>
+            <header class="bg-white shadow-lg rounded-xl p-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-900">Real-time Activity Detection</h1>
                 <button id="closeButton" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
                     Close Connection
                 </button>
             </header>
 
             <!-- Dashboard Header: 3 Columns -->
-            <section class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <section class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Column 1: Patien -->
                 <div id="patient_card" class="bg-white shadow rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-800 mb-4">Patient Card</h3>
                     <div id="patient_info" class="space-y-2">
                         <div>
                             <h4 class="font-medium text-gray-700">Patient Name:</h4>
-                            <p class="text-gray-900">John Doe</p>
+                            <p class="text-gray-900">{{patient.name[0].text}}</p>
                         </div>
                         <div>
                             <h4 class="font-medium text-gray-700">Patient ID:</h4>
-                            <p class="text-gray-900">123456</p>
+                            <p class="text-gray-900">{{patient.id}}</p>
                         </div>
                         <div>
-                            <h4 class="font-medium text-gray-700">Age:</h4>
-                            <p class="text-gray-900">65</p>
+                            <h4 class="font-medium text-gray-700">Birth Date:</h4>
+                            <p class="text-gray-900">{{patient.birthDate.isostring}}</p>
                         </div>
                         <div>
-                            <h4 class="font-medium text-gray-700">Address:</h4>
-                            <p id="patient_address" class="text-gray-900">Not available</p>
+                            <h4 class="font-medium text-gray-700">Gender:</h4>
+                            <p id="patient_gender" class="text-gray-900">{{ patient.gender }}</p>
                         </div>
                         <div>
                             <h4 class="font-medium text-gray-700">Condition:</h4>
-                            <p id="patient_condition" class="text-gray-900">Not available</p>
+                            {%- for con in patient.conditions %}
+                            <p class="text-gray-900"> {{ con.code.text }} </p>
+                            {% endfor %}
+
+                            {%- if patient.conditions|length == 0 %}
+                            <p class="text-gray-900">Not available</p>
+                            {% endif %}
                         </div>
                         <div>
                             <h4 class="font-medium text-gray-700">Current Medications:</h4>
-                            <p id="patient_medications" class="text-gray-900">Not available</p>
+
+                            {%- for med in patient.medications %}
+                            <p class="text-gray-900"> {{ med.medicationCodeableConcept.text }} </p>
+                            {% endfor %}
+
+                            {%- if patient.medications|length == 0 %}
+                            <p class="text-gray-900">Not available</p>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
                 <!-- Column 2: Vertical Stack (Confidence Chart, Current Activity, and Confidence) -->
-                <div class="space-y-6">
+                <div class="space-y-4 flex flex-col">
                     <!-- Confidence Chart Card -->
-                    <div class="bg-white shadow rounded-xl p-6">
-                        <h3 class="text-2xl font-semibold text-gray-800">Confidence of Current Activity</h3>
-                        <canvas id="confidenceChart" class="mt-4"></canvas>
+                    <div class="bg-white shadow rounded-xl p-6 flex-none" style="max-height: 55%">
+                        <h3 class="text-xl font-semibold text-gray-800">Confidence</h3>
+                        <canvas id="confidenceChart" class="mb-8" style="max-height: 95%"></canvas>
                     </div>
                     <!-- Current Activity & Confidence Details Card -->
-                    <div class="bg-white shadow rounded-xl p-6">
+                    <div class="bg-white shadow rounded-xl p-6 flex-auto">
                         <div id="current_state" class="mt-2 text-gray-900">
                             <h3 class="text-xl font-semibold text-gray-800">Current Activity:</h3>
                         </div>
@@ -81,7 +94,7 @@
             </section>
 
             <!-- Lower Section: -->
-            <section class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white shadow rounded-xl p-6">
                     <canvas id="accelChart"></canvas>
                 </div>
@@ -96,7 +109,7 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const patientId = urlParams.get("patientId") || "unknown";
+        const patientId = urlParams.get("patientId") || "{{ patient.id }}";
 
         var ws = new WebSocket("ws://localhost:8000/ws?patientId=" + patientId);
         var labelsArray = [];
@@ -274,7 +287,7 @@
             <h3 class="text-lg font-semibold text-gray-800">Current Activity: ${data.label}</h3>`
 
                     document.getElementById('confidence_state').innerHTML =
-                        ` <h3 class="text-lg font-semibold text-gray-800" > Confidence: ${data.confidence[data.label] * 100}%</h3>`;
+                        ` <h3 class="text-lg font-semibold text-gray-800" > Confidence: ${(data.confidence[data.label] * 100).toFixed(2)}%</h3>`;
                     confidenceData.fill(0);
                     confidenceLabels.forEach((label, index) => {
                         if (data.confidence[label] !== undefined) {
@@ -545,7 +558,7 @@
         }
 
 
-        fetchPatientData();
+        // fetchPatientData();
         fetchEventLogs(patientId);
     </script>
 </body>
