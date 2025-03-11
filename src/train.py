@@ -175,6 +175,7 @@ def cross_validation_testing(
     data = list(map(preprocess_file, csv_files))
     X, y, _ = zip(*data)
 
+
     mean_accuracy = 0
     mean_mse = 0
     mean_confusion_matrix = np.zeros((7, 7))
@@ -183,6 +184,7 @@ def cross_validation_testing(
     fold_size = len(data) // num_folds
     print(fold_size)
     for i in range(num_folds):
+        min_max_scaler = MinMaxScaler()
         start = i * fold_size
         end = (i + 1) * fold_size
 
@@ -191,6 +193,9 @@ def cross_validation_testing(
 
         X_train = pd.concat(X[:start] + X[end:])
         y_train = pd.concat(y[:start] + y[end:])
+
+        X_train = pd.DataFrame(min_max_scaler.fit_transform(X_train), columns=X_train.columns)
+        X_test = pd.DataFrame(min_max_scaler.transform(X_test), columns=X_test.columns)
 
         # shuffle the data (works because we have no temporal dependencies in the model itself)
         idx = np.random.permutation(len(X_train))
@@ -213,6 +218,8 @@ def cross_validation_testing(
     print(mean_confusion_matrix / num_folds)
 
 
+
+
 # cross_validation_testing()
 
 # for n in [50, 100, 200]:
@@ -225,7 +232,7 @@ def cross_validation_testing(
 
 
 def train_final_model(
-    folder="data", model_settings=dict(n_estimators=100, max_depth=15)
+    folder="data", model_settings=dict(n_estimators=100, max_depth=20)
 ):
     print("Loading and preprocessing data")
     # Load the data
@@ -263,5 +270,9 @@ def train_final_model(
     print("Training stats:")
     validate_model(clf, X, y)
 
-
 train_final_model(folder="clean_data")
+#for n_estimators in [50, 100, 200]:
+ #   for max_depth in [10, 20, 30]:
+ #       print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")
+ #       model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
+ #       cross_validation_testing(model_settings=model_settings, folder="clean_data")

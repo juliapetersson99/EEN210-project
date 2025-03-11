@@ -37,7 +37,7 @@ def predict_proba(model, input_data):
     dist = model.predict_proba(input_df)
     labeled_dist = dict(zip(model.classes_, dist[0]))
 
-    return labeled_dist
+    return pd.Series(labeled_dist)
 
 
 def predict(model, input_data):

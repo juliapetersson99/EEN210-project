@@ -1,7 +1,7 @@
 from state_monitor import FallDetectionStateMonitor
 from memory import RollingStats, LabelMemory
 from common import SENSOR_COLS, POSSIBLE_LABELS
-from predict import predict
+from predict import predict_proba as predict
 import pandas as pd
 import numpy as np
 import time

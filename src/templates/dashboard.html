@@ -116,7 +116,9 @@
         var accelData = { x: [], y: [], z: [] };
         var gyroData = { x: [], y: [], z: [] };
         var maxDataPoints = 250;
+        const offset_ms = 4096; // 4.096 mg/LSB
         const gToMs2 = 9.81;
+        const raw_to_ms2 = 9.81/4096; // 
         const degToRad = Math.PI / 180;
         //const max_acellero =20000 // 8g in m/s² (~78.48 m/s²)
         //const max_gyro = 500
@@ -258,9 +260,9 @@
                     accelChart.data.labels.push(currentTime);
                     gyroChart.data.labels.push(currentTime);
 
-                    accelChart.data.datasets[0].data.push(data.acceleration_y * gToMs2);
-                    accelChart.data.datasets[1].data.push(data.acceleration_x * gToMs2);
-                    accelChart.data.datasets[2].data.push(data.acceleration_z * gToMs2);
+                    accelChart.data.datasets[0].data.push(data.acceleration_x * raw_to_ms2);
+                    accelChart.data.datasets[1].data.push(data.acceleration_y * raw_to_ms2);
+                    accelChart.data.datasets[2].data.push(data.acceleration_z * raw_to_ms2);
 
                     gyroChart.data.datasets[0].data.push(data.gyroscope_x * degToRad);
                     gyroChart.data.datasets[1].data.push(data.gyroscope_y * degToRad);
@@ -308,6 +310,8 @@
         function fetchPatientData() {
             const fhirBaseUrl = "https://gw.interop.community/TestFIHR4EEN/open";
             let params = new URLSearchParams(window.location.search);
+
+
             // TODO: Jakob: Data can be passed from the server as a template to the html like this:
             let patientId = params.get("patientId") || "{{ patient.id }}";
             const url = `${fhirBaseUrl}/Patient/${patientId}`;
