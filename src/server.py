@@ -54,7 +54,7 @@ template_dir = os.path.join(current_dir, "templates")
 templates = Jinja2Templates(directory=template_dir)
 
 # Variables for processing data (depends on processing power)
-window = 50
+window = 20
 send_interval = 6  # Define the interval for sending data
 predict_interval = 2
 
@@ -73,7 +73,6 @@ async def get(request: Request):
         # Fetch patient data
         patient.conditions = fetch_conditions(smart, patient)
         patient.medications = fetch_medications(smart, patient)
-    
 
     # use demo patient if no real patient is available
     displayPatient = patient or demo_patient()
@@ -145,7 +144,7 @@ async def websocket_endpoint(websocket: WebSocket):
     if patient:
         patient_id = patient.id
         state_monitor.set_patient_id(patient_id)
-    #print(patient.id)
+    # print(patient.id)
 
     data_processor = DataProcessor(
         state_monitor,

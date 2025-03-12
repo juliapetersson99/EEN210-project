@@ -8,7 +8,7 @@ from predict import load_model
 from common import preprocess_file
 
 # Prepare dummy CSV data path (adjust the file name as needed)
-csv_file = "../clean_data/Jacob_first_gym_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
+csv_file = "../clean_data/julia_sitting_to_fall_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
 
 
 def test_process():

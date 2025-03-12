@@ -71,7 +71,7 @@ class RollingStats:
         if current_size < 2:
             return np.zeros(len(self.columns))
         # sample variance = (sum of x^2 - (sum of x)^2 / n ) / (n-1)
-        return (self.sum_sq - (self.sum * self.sum) / current_size) / (current_size - 1)
+        return (self.sum_sq - (self.sum / current_size) ** 2) / (current_size - 1)
 
     def std(self) -> np.ndarray:
         """
@@ -184,3 +184,110 @@ class LabelMemory:
         weighted_result = df.mul(weights, axis=0).sum()
 
         return weighted_result
+
+
+class RollingStatsPandas:
+    """
+    Class to calculate rolling statistics using Pandas DataFrame.
+    Provides the same functionality as RollingStats but with Pandas backend.
+    """
+
+    def __init__(
+        self,
+        window_size: int,
+        columns: list[str] = [
+            "acceleration_x",
+            "acceleration_y",
+            "acceleration_z",
+            "gyroscope_x",
+            "gyroscope_y",
+            "gyroscope_z",
+        ],
+    ):
+        self.columns = columns
+        self.window_size = window_size
+        self.df = pd.DataFrame(columns=columns)
+
+    def update(self, new_row: np.ndarray):
+        """
+        Add a new data point into the rolling window.
+        Remove the oldest data point if we're over capacity.
+        """
+        # Add new sample as a row at the end of the DataFrame
+        self.df.loc[len(self.df)] = new_row
+
+        # Remove oldest row if over window size
+        if len(self.df) > self.window_size:
+            self.df = self.df.iloc[1:].reset_index(drop=True)
+
+    def mean(self) -> np.ndarray:
+        """
+        Returns the rolling mean of the current window.
+        """
+        if len(self.df) == 0:
+            return np.zeros(len(self.columns))
+        return self.df.mean().values
+
+    def mean_labeled(self) -> dict:
+        """
+        Returns a labeled rolling mean of the current window.
+        """
+        if len(self.df) == 0:
+            return {f"{col}_mean": 0.0 for col in self.columns}
+        means = self.df.mean()
+        return {f"{col}_mean": val for col, val in means.items()}
+
+    def variance(self) -> np.ndarray:
+        """
+        Returns the rolling sample variance of the current window.
+        """
+        if len(self.df) < 2:
+            return np.zeros(len(self.columns))
+        return self.df.var().values
+
+    def std(self) -> np.ndarray:
+        """
+        Returns a rolling standard deviation of the current window.
+        """
+        if len(self.df) < 2:
+            return np.zeros(len(self.columns))
+        return self.df.std().values
+
+    def std_labeled(self) -> dict:
+        """
+        Returns a labeled rolling standard deviation of the current window.
+        """
+        if len(self.df) < 2:
+            return {f"{col}_std": 0.0 for col in self.columns}
+        stds = self.df.std()
+        return {f"{col}_std": val for col, val in stds.items()}
+
+    def min_labeled(self) -> dict:
+        """
+        Returns a labeled rolling minimum of the current window.
+        """
+        if len(self.df) == 0:
+            return {f"{col}_min": 0.0 for col in self.columns}
+        mins = self.df.min()
+        return {f"{col}_min": val for col, val in mins.items()}
+
+    def max_labeled(self) -> dict:
+        """
+        Returns a labeled rolling maximum of the current window.
+        """
+        if len(self.df) == 0:
+            return {f"{col}_max": 0.0 for col in self.columns}
+        maxs = self.df.max()
+        return {f"{col}_max": val for col, val in maxs.items()}
+
+    def size(self) -> int:
+        """
+        Returns the current size of the window.
+        """
+        return len(self.df)
+
+    def clear(self):
+        """
+        Clear the window.
+        """
+        self.df = pd.DataFrame(columns=self.columns)

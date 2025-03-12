@@ -1,5 +1,5 @@
 from state_monitor import FallDetectionStateMonitor
-from memory import RollingStats, LabelMemory
+from memory import RollingStats, LabelMemory, RollingStatsPandas
 from common import SENSOR_COLS, POSSIBLE_LABELS, ADJUST_W_BASELINE
 from predict import predict_proba as predict
 import pandas as pd
@@ -20,7 +20,7 @@ class DataProcessor:
     scaler: MinMaxScaler
 
     # Store stats and previous labels for a given window
-    rolling_stats: RollingStats
+    rolling_stats: RollingStatsPandas
     label_memory: LabelMemory
 
     # Collect baseline data for starting measurements at 0
@@ -42,7 +42,7 @@ class DataProcessor:
         feature_cols: list[str] = [],
     ):
         self.window = window
-        self.rolling_stats = RollingStats(window)
+        self.rolling_stats = RollingStatsPandas(window)
         self.label_memory = LabelMemory(window, labels=POSSIBLE_LABELS)
         self.state_monitor = state_monitor
         self.model = model
