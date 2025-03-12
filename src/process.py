@@ -26,6 +26,7 @@ class DataProcessor:
     # Collect baseline data for starting measurements at 0
     baseline = None
     prev_label_distribution = None
+    prev_label = None
     total_measurements = 0  # Initialize a counter
     feature_cols: list[str] = []  # Features to use for prediction
 
@@ -55,17 +56,18 @@ class DataProcessor:
         data_row = pd.Series(
             json_data,
             index=SENSOR_COLS,
-        )
+        ).astype(float)
 
         if self.baseline is None:
             # add data to the rolling stats
             self.rolling_stats.update(data_row)
-
-            if self.rolling_stats.size() >= 10:
+            if self.rolling_stats.size() >= 20:
                 # Compute the baseline averages for only the ADJUST_W_BASELINE columns
-                baseline_all = self.rolling_stats.mean()          # returns an ndarray
-                baseline_series = pd.Series(baseline_all, index=self.rolling_stats.columns)
-                self.baseline = baseline_series[ADJUST_W_BASELINE].astype("int64")  # filter only the desired columns
+                baseline_all = self.rolling_stats.mean()  # returns an ndarray
+                baseline_series = pd.Series(
+                    baseline_all, index=self.rolling_stats.columns
+                )
+                self.baseline = baseline_series[ADJUST_W_BASELINE]
                 self.rolling_stats.clear()
                 print("Baseline calculated:")
                 print(self.baseline)
@@ -107,7 +109,10 @@ class DataProcessor:
             prev_labels = (
                 {f"prev_{k}": v for k, v in self.prev_label_distribution.items()}
                 if self.prev_label_distribution is not None
-                else {f"prev_{l}": 0 for l in POSSIBLE_LABELS}
+                else {
+                    f"prev_{l}": 1 if l == self.prev_label else 0
+                    for l in POSSIBLE_LABELS
+                }
             )
 
             feature_row = pd.DataFrame(
@@ -142,7 +147,8 @@ class DataProcessor:
             # Calculate the weighted average distribution of the last labels
             avg_label_dist = self.label_memory.averaged_current_label()
             mode_label = self.label_memory.mode()
-            self.prev_label_distribution = avg_label_dist
+            # self.prev_label_distribution = avg_label_dist
+            self.prev_label = mode_label
 
             json_data["confidence"] = avg_label_dist.to_dict()
             json_data["label"] = mode_label
@@ -154,11 +160,11 @@ class DataProcessor:
             if self.state_monitor.current_state in [
                 "no_movement",
                 "fall_notification",
-                "person_safe"
+                "person_safe",
             ]:
                 json_data["update_logs"] = True
             else:
-                json_data["update_logs"] =  False
+                json_data["update_logs"] = False
             return json_data
         # do not respond with json_data
         return None

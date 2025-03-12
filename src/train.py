@@ -145,50 +145,50 @@ def cross_validation_testing(
 
 # cross_validation_testing(folder="clean_data")
 
-metrics_data = []
+# metrics_data = []
 
-for n_estimators in [50, 100, 200]:
-    for max_depth in [10, 15, 20]:
-        for window_size in [20, 50, 100, 200]:
-            print(
-                f"Testing with n_estimators={n_estimators}, window={window_size} and max_depth={max_depth}"
-            )
-            model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
-            acc, confusion_matrix, mean_mse = cross_validation_testing(
-                model_settings=model_settings,
-                folder="clean_data",
-                window_size=window_size,
-            )
-            metrics_data.append(
-                {
-                    "n_estimators": n_estimators,
-                    "max_depth": max_depth,
-                    "window": window_size,
-                    "accuracy": acc,
-                    "mse": mean_mse,
-                    **{
-                        f"{l}_correct": confusion_matrix.loc[l, l]
-                        for l in POSSIBLE_LABELS
-                    },
-                }
-            )
+# for n_estimators in [50, 100, 200]:
+#     for max_depth in [10, 15, 20]:
+#         for window_size in [20, 50, 100, 200]:
+#             print(
+#                 f"Testing with n_estimators={n_estimators}, window={window_size} and max_depth={max_depth}"
+#             )
+#             model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
+#             acc, confusion_matrix, mean_mse = cross_validation_testing(
+#                 model_settings=model_settings,
+#                 folder="clean_data",
+#                 window_size=window_size,
+#             )
+#             metrics_data.append(
+#                 {
+#                     "n_estimators": n_estimators,
+#                     "max_depth": max_depth,
+#                     "window": window_size,
+#                     "accuracy": acc,
+#                     "mse": mean_mse,
+#                     **{
+#                         f"{l}_correct": confusion_matrix.loc[l, l]
+#                         for l in POSSIBLE_LABELS
+#                     },
+#                 }
+#             )
 
-metrics_df = pd.DataFrame(metrics_data)
-metrics_df.to_csv("cv_metrics.csv", index=False)
+# metrics_df = pd.DataFrame(metrics_data)
+# metrics_df.to_csv("cv_metrics.csv", index=False)
 
 
 # %% Train model
 
 
 def train_final_model(
-    folder="data", model_settings=dict(n_estimators=100, max_depth=20)
+    folder="data", model_settings=dict(n_estimators=100, max_depth=20), window_size=100
 ):
     print("Loading and preprocessing data")
     # Load the data
     csv_files = glob.glob(f"{folder}/*.csv")
 
     # Read and preprocess all CSV files
-    data = list(map(preprocess_file, csv_files))
+    data = list(map(lambda f: preprocess_file(f, window_size=window_size), csv_files))
     # join all the data
     X, y, dfs = zip(*data)
 
@@ -220,7 +220,11 @@ def train_final_model(
     validate_model(clf, X, y)
 
 
-train_final_model(folder="clean_data")
+train_final_model(
+    folder="clean_data",
+    model_settings=dict(n_estimators=50, max_depth=10),
+    window_size=20,
+)
 # for n_estimators in [50, 100, 200]:
 #  for max_depth in [10, 20, 30]:
 #        print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")

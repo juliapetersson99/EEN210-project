@@ -5,10 +5,10 @@ from storage_classes import FileStorage
 from state_monitor import FallDetectionStateMonitor
 
 from predict import load_model
-from common import add_features, preprocess_file
+from common import preprocess_file
 
 # Prepare dummy CSV data path (adjust the file name as needed)
-csv_file = "clean_data/Jacob_first_gym_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
+csv_file = "../clean_data/Jacob_first_gym_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
 
 
 def test_process():
@@ -18,7 +18,7 @@ def test_process():
     # Read CSV file into a DataFrame and preprocess with the training code
     X, y, df = preprocess_file(csv_file, window_size=20)
 
-    test_datapoints = 50
+    test_datapoints = 7000
 
     print(X.head(test_datapoints))
 
@@ -28,16 +28,16 @@ def test_process():
     state_monitor = FallDetectionStateMonitor(notifier, storage)
 
     # Load the model, scaler, and feature columns with joblib as in server
-    model, scaler, feature_cols = load_model("final_model")
+    model, scaler, feature_cols = load_model("../final_model")
 
     dp = DataProcessor(
         state_monitor=state_monitor,
         model=model,
         scaler=scaler,
-        window=10,
-        predict_interval=2,
-        send_interval=3,
-        baseline_window=3,
+        window=20,
+        predict_interval=1,
+        send_interval=1,
+        baseline_window=20,
         feature_cols=feature_cols,
     )
 
@@ -53,9 +53,21 @@ def test_process():
     if outputs:
         results_df = pd.DataFrame(outputs)
         print(results_df)
+
+        # Make sure both axes have all possible labels
+        confusion_matrix = pd.crosstab(
+            y[:test_datapoints],
+            results_df["label"],
+            rownames=["Actual"],
+            colnames=["Predicted"],
+            dropna=False,
+        )
+        print(confusion_matrix)
     else:
         print("No outputs generated.")
 
+    return X, results_df
+
 
 if __name__ == "__main__":
-    test_process()
+    X, df = test_process()

@@ -99,10 +99,9 @@ def preprocess_file(path: str, window_size=100):
     baseline = df[ADJUST_W_BASELINE].head(20).mean()
     # Subtract the baseline from the sensor columns, for the file, so 0 represents the still state
     # df[SENSOR_COLS] = df[SENSOR_COLS] - baseline
-    # print(baseline)
 
     df = df.ffill()
-    df = df.dropna()
+    df = df.dropna(subset=["label"])
     X = df[SENSOR_COLS].astype(float)
 
     X.loc[:, ADJUST_W_BASELINE] = X[ADJUST_W_BASELINE] - baseline
