@@ -74,8 +74,10 @@ async def get(request: Request):
         patient.conditions = fetch_conditions(smart, patient)
         patient.medications = fetch_medications(smart, patient)
 
+
     # use demo patient if no real patient is available
     displayPatient = patient or demo_patient()
+    state_monitor.set_patient(patient)
 
     print(displayPatient.as_json())
 
@@ -141,9 +143,7 @@ async def get_css():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global current_label, window, send_interval, predict_interval
-    if patient:
-        patient_id = patient.id
-        state_monitor.set_patient_id(patient_id)
+
     # print(patient.id)
 
     data_processor = DataProcessor(

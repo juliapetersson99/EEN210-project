@@ -1,5 +1,5 @@
 from state_monitor import FallDetectionStateMonitor
-from memory import RollingStats, LabelMemory, RollingStatsPandas
+from memory import RollingStats, LabelMemory
 from common import SENSOR_COLS, POSSIBLE_LABELS, ADJUST_W_BASELINE
 from predict import predict_proba as predict
 import pandas as pd
@@ -20,7 +20,7 @@ class DataProcessor:
     scaler: MinMaxScaler
 
     # Store stats and previous labels for a given window
-    rolling_stats: RollingStatsPandas
+    rolling_stats: RollingStats
     label_memory: LabelMemory
 
     # Collect baseline data for starting measurements at 0
@@ -42,7 +42,7 @@ class DataProcessor:
         feature_cols: list[str] = [],
     ):
         self.window = window
-        self.rolling_stats = RollingStatsPandas(window)
+        self.rolling_stats = RollingStats(window)
         self.label_memory = LabelMemory(window, labels=POSSIBLE_LABELS)
         self.state_monitor = state_monitor
         self.model = model
@@ -106,6 +106,7 @@ class DataProcessor:
             )
 
             # rename columns of previous distribution to _prev
+            
             prev_labels = (
                 {f"prev_{k}": v for k, v in self.prev_label_distribution.items()}
                 if self.prev_label_distribution is not None
@@ -124,7 +125,7 @@ class DataProcessor:
                     **self.rolling_stats.std_labeled(),
                     **self.rolling_stats.min_labeled(),
                     **self.rolling_stats.max_labeled(),
-                    **prev_labels,
+                   # **prev_labels,
                 },
                 index=[0],
             )[self.feature_cols]
@@ -155,7 +156,8 @@ class DataProcessor:
 
             self.state_monitor.update_state(mode_label)
             json_data["state"] = self.state_monitor.current_state
-            json_data["state_patient_id"] = self.state_monitor.patient_id
+            if(self.state_monitor.patient != None):
+                json_data["state_patient_id"] = self.state_monitor.patient.id
             # send a flag to update the logs in history and alert the user
             if self.state_monitor.current_state in [
                 "no_movement",

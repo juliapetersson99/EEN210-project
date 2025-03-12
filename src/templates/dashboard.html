@@ -491,7 +491,20 @@
 
                     data.forEach(entry => {
                         const logEntry = document.createElement("div");
-                        logEntry.className = "p-4 bg-white rounded-lg shadow border border-gray-200";
+                        let bgColorClass = "bg-white";
+                        const code = entry.code.trim();
+                        if (code === "Person recovered") {
+                            bgColorClass = "bg-green-100";
+                        } else if (code === "W19 (Fall)") {
+                            bgColorClass = "bg-orange-100";
+                        } else if (code === "No movement of patient") {
+                            bgColorClass = "bg-red-100";
+                        }
+
+
+                        //console.log(code);
+                        logEntry.className = `p-4 ${bgColorClass} rounded-lg shadow border border-gray-200`;
+                        //logEntry.className = "p-4 bg-white rounded-lg shadow border border-gray-200";
                         logEntry.innerHTML = `
           <div class="text-sm text-gray-500">${formatTimestamp(entry.timestamp)}</div>
           <div class="mt-1 text-lg font-bold text-gray-800">${entry.code} </div>

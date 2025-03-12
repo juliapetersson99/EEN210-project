@@ -60,7 +60,7 @@ def add_features(data_frame, rolling_size):
             + result_df[f"{data_type}_y"] ** 2
             + result_df[f"{data_type}_z"] ** 2
         )
-
+    """
     if "prev_label" not in result_df.columns and "label" in result_df.columns:
         # Get all unique labels
 
@@ -86,7 +86,7 @@ def add_features(data_frame, rolling_size):
                 mode_val = max(counts, key=counts.get)
                 idx = result_df.index[i]
                 result_df.loc[idx, f"prev_{mode_val}"] = 1
-
+    """
     addedColumns = set(result_df.columns) - columns
     return result_df.iloc[rolling_size:], list(addedColumns)
 
