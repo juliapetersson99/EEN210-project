@@ -132,6 +132,7 @@ async def callback(request: Request):
 def get_logs(patientId: str = Query(...)):
     # Retrieve logs for the given patient
     events = storage.read_events_for_patient(patientId)
+    #print(events)
     return events
 
 

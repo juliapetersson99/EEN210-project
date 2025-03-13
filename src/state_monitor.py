@@ -8,7 +8,8 @@ ALERT_CODES = {
     "fall_notification": "W19 (Fall)",
     "person_safe": "Person recovered",
     "no_movement": "No movement of patient",
-    "extended_inactivity": "Activity Reminder"  
+    "extended_inactivity": "Activity Reminder",
+    "resumed_activity": "Resumed to activities"
 }
 
 class FallDetectionStateMonitor:
@@ -26,7 +27,11 @@ class FallDetectionStateMonitor:
     def set_patient(self, patient):
         self.patient = patient
         today = datetime.today()
-        patient_date = datetime.strptime(patient.birthDate.isostring, '%Y-%m-%d')
+        try:
+            patient_date = datetime.strptime(patient.birthDate.isostring, '%Y-%m-%d')
+        except:
+            #demo patient
+            patient_date = datetime.strptime('1991-01-01', '%Y-%m-%d')
         self.age = today.year - patient_date.year - ((today.month, today.day) < (patient_date.month, patient_date.day))
 
     def update_state(self, predicted_label: str):
@@ -41,9 +46,14 @@ class FallDetectionStateMonitor:
             return
         stable_label = self.label_buffer[0]
 
+        #needed to do this for demo fix..
+        if(self.current_state == "extended_inactivity"):
+            self.inactivity_start = None
+            self.current_state = "normal"
         #reset inactivity counter if the stable label is different from sitting/standing
         if stable_label not in ["sitting", "standing"]:
             self.inactivity_start = None
+        
 
         #Fall detection: transition from normal to fall notification.
         if stable_label == "falling" and self.current_state == "normal":
@@ -58,9 +68,9 @@ class FallDetectionStateMonitor:
         elif stable_label == "laying":
             if self.current_state == "fall_notification":
                 # If patient has been laying for more than 10 seconds, alert no movement.
-                time_limit = 20
+                time_limit = 10
                 if(self.age >= 70):
-                    time_limit = 10
+                    time_limit = 5
 
                 if current_time - self.last_fall_timestamp >= time_limit:
                     self.current_state = "no_movement"
@@ -81,28 +91,34 @@ class FallDetectionStateMonitor:
                     self.storage.save_state_change(self.patient.id,self.current_state, "Patient recovered and is safe.",ALERT_CODES["person_safe"])
 
 
-        elif stable_label in ["sitting", "standing"]:
+        elif stable_label in ["sitting", "standing"] and self.current_state !="extended_inactivity":
 
             # If transitioning into sitting/standing, record the time.
             if self.inactivity_start is None:
                 self.inactivity_start = current_time
             # Check for extended inactivity (30 minutes = 1800 seconds)
-            elif current_time - self.inactivity_start >= 1800:
+            elif current_time - self.inactivity_start >= 13:
                 self.current_state = "extended_inactivity"
                 self.notifier.send_alert(
                     ALERT_CODES["extended_inactivity"],
                     "Patient has been sitting/standing still for over 30 minutes."
                 )
+                self.inactivity_start = None
                 if self.storage:
                     self.storage.save_state_change(self.patient.id,self.current_state, "Extended inactivity alert triggered.",ALERT_CODES["extended_inactivity"])
             else:
                 if(self.current_state == "person_safe"):
                     self.current_state = "normal"
 
+
+        elif stable_label in ["walking","running"] and self.current_state == "extended_inactivity":
+            self.current_state = "normal"
+            if self.storage:
+                self.storage.save_state_change(self.patient.id,self.current_state, "Patient resumed to activities.",ALERT_CODES["resumed_activity"])
         # 4. Other activities (e.g., walking) reset inactivity and state set to normal again assumin patient is recovered
         else:
             self.inactivity_start = None
             if stable_label == ['walking','running'] and self.current_state == "person_safe":
                 self.current_state = "normal"
                 if self.storage:
-                    self.storage.save_state_change(self.patient.id,self.current_state, "Patient resumed to activities.")
+                    self.storage.save_state_change(self.patient.id,self.current_state, "Patient resumed to activities.",ALERT_CODES["resumed_activity"])

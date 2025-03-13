@@ -163,9 +163,10 @@ class DataProcessor:
                 "no_movement",
                 "fall_notification",
                 "person_safe",
+                'extended_inactivity'
             ]:
                 json_data["update_logs"] = True
-            else:
+            else:   
                 json_data["update_logs"] = False
             return json_data
         # do not respond with json_data
