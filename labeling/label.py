@@ -308,6 +308,9 @@ def update_figure_on_upload(contents):
     )
 
     if "label" in df.columns:
+        # fill in weird gaps
+        df["label"] = df["label"].fillna(df["label"].shift(1))
+
         label_blocks = create_label_blocks(df)
         print(label_blocks)
         edits = df.copy()  # Store the original DataFrame for edits
@@ -442,6 +445,9 @@ def download_csv(n_clicks, filename, selected_person):
                 "prev_label_block",
             ] = prev_label
             prev_label = label
+
+    # fill NaN labels with the next label to fix weird gaps
+    export_df["label"] = export_df["label"].fillna(export_df["label"].shift(1))
 
     # Add the selected person column
     if selected_person:
