@@ -220,13 +220,28 @@ def train_final_model(
     validate_model(clf, X, y)
 
 
-train_final_model(
-    folder="clean_data",
-    model_settings=dict(n_estimators=50, max_depth=10),
-    window_size=20,
-)
+# train_final_model(
+#     folder="clean_data",
+#     model_settings=dict(n_estimators=50, max_depth=10),
+#     window_size=20,
+# )
 # for n_estimators in [50, 100, 200]:
 #  for max_depth in [10, 20, 30]:
 #        print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")
 #        model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
 #        cross_validation_testing(model_settings=model_settings, folder="clean_data")
+
+acc, confusion_matrix, mse = cross_validation_testing(
+    folder="clean_data",
+    model_settings=dict(n_estimators=50, max_depth=10),
+    window_size=20,
+)
+
+# plot confusion matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 7))
+sns.heatmap(confusion_matrix, annot=True, fmt=".2f", cmap="Blues")
+plt.savefig("confusion_matrix.png")
+plt.show()

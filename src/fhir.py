@@ -37,4 +37,4 @@ def demo_patient():
     patient = Patient(data)
     patient.medications = []
     patient.conditions = []
-    return data
+    return patient

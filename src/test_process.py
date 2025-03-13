@@ -6,9 +6,10 @@ from state_monitor import FallDetectionStateMonitor
 
 from predict import load_model
 from common import preprocess_file
+from fhir import demo_patient
 
 # Prepare dummy CSV data path (adjust the file name as needed)
-csv_file = "../clean_data/julia_sitting_to_fall_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
+csv_file = "../clean_data/Julia_maskin_clean.csv"  # This file should be located at /c:/dev/python/EEN210-project/tests/test_data.csv
 
 
 def test_process():
@@ -26,6 +27,7 @@ def test_process():
     notifier = ConsoleNotifier()
     storage = FileStorage(file_path="test_state_changes.log")
     state_monitor = FallDetectionStateMonitor(notifier, storage)
+    state_monitor.set_patient(demo_patient())
 
     # Load the model, scaler, and feature columns with joblib as in server
     model, scaler, feature_cols = load_model("../final_model")

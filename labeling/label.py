@@ -75,6 +75,32 @@ app.layout = html.Div(
             style={"height": "80vh"},
             figure={},
         ),
+        html.Div(
+            [
+                html.Div(
+                    [
+                        dcc.Graph(
+                            id="accelerometer-3d-plot",
+                            config={"scrollZoom": True},
+                            style={"height": "80vh"},
+                            figure={},
+                        ),
+                    ],
+                    style={"width": "50%", "display": "inline-block"},
+                ),
+                html.Div(
+                    [
+                        dcc.Graph(
+                            id="gyroscope-3d-plot",
+                            config={"scrollZoom": True},
+                            style={"height": "80vh"},
+                            figure={},
+                        ),
+                    ],
+                    style={"width": "50%", "display": "inline-block"},
+                ),
+            ]
+        ),
     ]
 )
 
@@ -241,7 +267,11 @@ edits = pd.DataFrame()
 
 
 @app.callback(
-    Output("line-plot", "figure", allow_duplicate=True),
+    [
+        Output("line-plot", "figure", allow_duplicate=True),
+        Output("accelerometer-3d-plot", "figure"),
+        Output("gyroscope-3d-plot", "figure"),
+    ],
     [Input("upload-data", "contents")],
     prevent_initial_call=True,
 )
@@ -249,14 +279,14 @@ def update_figure_on_upload(contents):
     global edits, edit_blocks
     edit_blocks = pd.DataFrame()
     if contents is None:
-        return dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     df = parse_contents(contents)
     edits = df.copy()  # Store the original DataFrame for edits
 
     df_scaled = standard_scale_features(df.copy())
 
-    # Create figure with both original sensor data and calculated position/velocity
+    # Create main figure with both original sensor data and calculated position/velocity
     fig = px.line(
         df_scaled,
         x="timestamp",
@@ -307,6 +337,9 @@ def update_figure_on_upload(contents):
         ),
     )
 
+    # Create a color map for labels
+    color_map = {}
+
     if "label" in df.columns:
         # fill in weird gaps
         df["label"] = df["label"].fillna(df["label"].shift(1))
@@ -316,7 +349,7 @@ def update_figure_on_upload(contents):
         edits = df.copy()  # Store the original DataFrame for edits
         color_map = {
             label: px.colors.qualitative.Plotly[i % len(px.colors.qualitative.Plotly)]
-            for i, label in enumerate(label_blocks["label"].unique())
+            for i, label in enumerate(df["label"].dropna().unique())
         }
         for _, row in label_blocks.iterrows():
             if row["label"] is not None and not pd.isna(row["label"]):
@@ -331,7 +364,50 @@ def update_figure_on_upload(contents):
                     annotation_position="top left",
                     annotation=dict(textangle=-90),
                 )
-    return fig
+    accel_fig = go.Figure()
+    gyro_fig = go.Figure()
+
+    # Create 3D scatter plot for accelerometer data with label-based coloring
+    if "label" in df.columns:
+        # Create a numeric encoding of labels for coloring
+        unique_labels = df["label"].dropna().unique()
+        label_to_num = {label: i for i, label in enumerate(unique_labels)}
+
+        # Fill NA labels with a placeholder value for visualization
+        df_plot = df.copy()
+        df_plot["label_numeric"] = df_plot["label"].map(label_to_num)
+        df_plot["label_numeric"] = df_plot["label_numeric"].fillna(
+            -1
+        )  # -1 for unlabeled
+
+        # Create the accelerometer scatter plot with label coloring
+        accel_fig = px.scatter_3d(
+            df_plot,
+            x="acceleration_y",
+            y="acceleration_x",
+            z="acceleration_z",
+            color="label",
+            color_discrete_map=color_map,
+            title="Acceleration 3D Scatter",
+            labels={"color": "Activity"},
+            # opacity=0.2,
+        )
+        # accel_fig.update_traces(marker_size=2.5)
+
+        # Create the gyroscope scatter plot with label coloring
+        gyro_fig = px.scatter_3d(
+            df_plot,
+            x="gyroscope_y",
+            y="gyroscope_x",
+            z="gyroscope_z",
+            color="label",
+            color_discrete_map=color_map,
+            title="Gyroscope 3D Scatter",
+            labels={"color": "Activity"},
+            opacity=0.2,
+        )
+        gyro_fig.update_traces(marker_size=2.5)
+    return fig, accel_fig, gyro_fig
 
 
 @app.callback(
