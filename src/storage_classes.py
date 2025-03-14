@@ -14,7 +14,7 @@ class FileStorage:
         If the file is new or empty, a header row is written.
         """
         timestamp = datetime.now().isoformat()
-        # Check if the file exists and is non-empty
+        # file exists and is non-empty
         file_exists = os.path.exists(self.file_path) and os.path.getsize(self.file_path) > 0
         line = f"{timestamp},{patient_id or ''},{state or ''},{message or ''},{code or ''}\n"
         with open(self.file_path, "a") as f:
@@ -33,6 +33,6 @@ class FileStorage:
             df = pd.read_csv(self.file_path)
         except FileNotFoundError:
             return []
-        # Filter the DataFrame for the given patient_id
+        # filter the DataFrame for the given patient_id
         df_patient = df[df["patient_id"] == patient_id]
         return df_patient.to_dict(orient="records")

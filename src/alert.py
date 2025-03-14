@@ -15,7 +15,8 @@ class TelegramNotifier(AlertNotifier):
         self.token = token
         self.chat_id = chat_id
     def send_alert(self, alert_code: str, message: str):
+        #just need to create a bot in telegram and get the token and chat id for the channel
         requests.get(
             f"https://api.telegram.org/bot{self.token}/sendMessage?chat_id={self.chat_id}&text=ALERT%20[{alert_code}]:%20{message}"
         )
-        print(f"ALERT [{alert_code}]: {message}")
+        #print(f"ALERT [{alert_code}]: {message}")
