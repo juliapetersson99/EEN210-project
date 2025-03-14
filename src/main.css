@@ -23,25 +23,23 @@ main {
     align-items: center;
   }
   
-  /* Put the confidence section in the first column */
   .confidence-section {
     grid-column: 1 / 2;
     padding: 1rem;
   }
 
-  /* Put the info section in the second column */
   .info-section {
     grid-column: 2 / 3;
     padding: 1rem;
     border-radius: 4px;
   }
   .patient-box {
-    background-color: #ffffff;  /* or another color you prefer */
-    border: 1px solid #ccc;     /* thin gray border */
+    background-color: #ffffff;  
+    border: 1px solid #ccc;     /
     border-radius: 8px;         /* rounded corners */
-    padding: 1rem;              /* space inside the box */
-    margin-bottom: 1rem;        /* space below the box */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* subtle drop shadow */
+    padding: 1rem;              
+    margin-bottom: 1rem;       
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
   }
   
   .patient-box h3 {
@@ -63,7 +61,7 @@ main {
     padding: 1rem;
   }
   
-  /* Wave panel row spans all 3 columns (1 to 4) */
+  /* Wave panel row spans all 3 columns */
   .wave-panel {
     grid-column: 1 / 4;
     background-color: #f9f9f9;

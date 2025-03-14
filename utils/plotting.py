@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.patches as mpatches
+from matplotlib.dates import AutoDateLocator, AutoDateFormatter
 
 def split_dataframe_into_sliding_windows(df, window_size):
 
@@ -40,8 +41,8 @@ def plot_full_sequence(data_frame):
     ax[1].set_title("Accelerometer")
     ax[0].set_xlabel("Time")
     ax[1].set_xlabel("Time")
-    ax[0].set_ylabel("dps (degrees per second)")
-    ax[1].set_ylabel("m/s^2 (g)")
+    ax[0].set_ylabel("rad/s")
+    ax[1].set_ylabel("m/s^2")
 
     for i in range(3):
         ax[0].plot(
@@ -81,30 +82,34 @@ label_colors = {
 
 def plot_with_labels(data_frame, plt_name):
 
-    colors = ["b", "g", "r", "tab:blue", "tab:green", "tab:red"]
-    styles = ["-", "-", "-", "--", "--", "--"]
-    index_x = ["x", "y", "z", "x_avg", "y_avg", "z_avg"]
+    colors = ["b", "g", "r"]
+    styles = ["-", "-", "-"]
+    index_x = ["x", "y", "z"]
 
-    X = data_frame["timestamp"]
+    # Ensure timestamps are datetime objects to avoid subtraction errors
+    data_frame["timestamp"] = pd.to_datetime(data_frame["timestamp"])
+    # Change timestamps to relative seconds (0 is start)
+    t0 = data_frame["timestamp"].min()
+    X = (data_frame["timestamp"] - t0).dt.total_seconds()
     gyroscope = data_frame[["gyroscope_x", "gyroscope_y", "gyroscope_z"]]
     accelerometer = data_frame[["acceleration_x", "acceleration_y", "acceleration_z"]]
 
-    for col in gyroscope.columns:
-        gyroscope[col + "_avg"] = gyroscope[col].rolling(window=20).mean()
+    #for col in gyroscope.columns:
+    #    gyroscope[col + "_avg"] = gyroscope[col].rolling(window=20).mean()
 
-    for col in accelerometer.columns:
-        accelerometer[col + "_avg"] = accelerometer[col].rolling(window=20).mean()
+    #for col in accelerometer.columns:
+    #    accelerometer[col + "_avg"] = accelerometer[col].rolling(window=20).mean()
 
     fig, ax = plt.subplots(2, 1, figsize=(10, 10))
-    fig.suptitle("Full sequence plot")
+    fig.suptitle("Data collected from the sensors labeled with the activity", x=0.5)
     ax[0].set_title("Gyroscope")
     ax[1].set_title("Accelerometer")
-    ax[0].set_xlabel("Time")
-    ax[1].set_xlabel("Time")
-    ax[0].set_ylabel("dps (degrees per second)")
-    ax[1].set_ylabel("m/s^2 (g)")
+    ax[0].set_xlabel("Time (s)")
+    ax[1].set_xlabel("Time (s)")
+    ax[0].set_ylabel("rad/s")
+    ax[1].set_ylabel("m/s^2")
 
-    for i in range(6):
+    for i in range(3):
         ax[0].plot(
             X,
             gyroscope.iloc[:, i],
@@ -127,17 +132,18 @@ def plot_with_labels(data_frame, plt_name):
     )
     intervals.columns = ["start", "end", "label"]
 
-    # shade the different intervals with label
+    # Shade intervals by converting absolute times to relative seconds
     for _, row in intervals.iterrows():
-        # for each of the subplots
+        start_sec = (row["start"] - t0).total_seconds()
+        end_sec = (row["end"] - t0).total_seconds()
         for sub_ax in ax:
             sub_ax.axvspan(
-                row["start"],
-                row["end"],
+                start_sec,
+                end_sec,
                 color=label_colors[row["label"]],
-                alpha=0.2,  # Visibiulity
+                alpha=0.2,  # Visibility
                 zorder=0,
-            )  # order of plots in the z-direction
+            )
 
     present_labels = intervals["label"].unique()
     patches = [
@@ -158,8 +164,7 @@ def plot_with_labels(data_frame, plt_name):
     # Add legends for sensor data to each subplot
     ax[0].legend(loc="upper left", fontsize=10)
     ax[1].legend(loc="upper left", fontsize=10)
-    plt.tight_layout(
-        rect=[0, 0, 0.85, 0.95]
-    )  # Leave space on the right for the Activity Labels legend, nededs ot be in
+
+    plt.tight_layout(rect=[0, 0, 0.85, 0.92])  
     plt.savefig(plt_name + ".png", bbox_inches="tight")
     plt.close()

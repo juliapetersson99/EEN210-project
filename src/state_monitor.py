@@ -20,7 +20,7 @@ class FallDetectionStateMonitor:
         self.inactivity_start = None 
         self.storage = storage
         self.patient= patient
-        self.label_buffer = []  # new buffer for the last 10 labels
+        self.label_buffer = []  #buffer for the last 10 labels
         self.age = None
 
 
@@ -55,7 +55,7 @@ class FallDetectionStateMonitor:
             self.inactivity_start = None
         
 
-        #Fall detection: transition from normal to fall notification.
+        #transition from normal to fall notification.
         if stable_label == "falling" and self.current_state == "normal":
             self.current_state = "fall_notification"
             self.last_fall_timestamp = current_time
@@ -83,7 +83,7 @@ class FallDetectionStateMonitor:
 
         
         elif stable_label == "recover" and self.current_state in ["fall_notification", "no_movement"]:
-             # If recovering from a fall
+             #recovering from a fall
             if self.current_state in ["fall_notification", "no_movement"]:
                 self.current_state = "person_safe"
                 self.notifier.send_alert(ALERT_CODES["person_safe"], "Patient recovered and is safe.")
@@ -96,7 +96,7 @@ class FallDetectionStateMonitor:
             # If transitioning into sitting/standing, record the time.
             if self.inactivity_start is None:
                 self.inactivity_start = current_time
-            # Check for extended inactivity (30 minutes = 1800 seconds)
+            # Check for extended inactivity (adjust as needed, 13 seconds for demo purposes)
             elif current_time - self.inactivity_start >= 13:
                 self.current_state = "extended_inactivity"
                 self.notifier.send_alert(
@@ -115,7 +115,7 @@ class FallDetectionStateMonitor:
             self.current_state = "normal"
             if self.storage:
                 self.storage.save_state_change(self.patient.id,self.current_state, "Patient resumed to activities.",ALERT_CODES["resumed_activity"])
-        # 4. Other activities (e.g., walking) reset inactivity and state set to normal again assumin patient is recovered
+        # reset inactivity timer if patient is walking/running
         else:
             self.inactivity_start = None
             if stable_label == ['walking','running'] and self.current_state == "person_safe":
