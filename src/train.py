@@ -71,7 +71,7 @@ def validate_model(clf, X_test, y_test):
     mse = np.mean((y_true - y_pred) ** 2)
     print(f"Mean square error: {mse}")
 
-    return accuracy, norm_confusion_matrix, mse
+    return accuracy, confusion_matrix, mse
 
 
 def cross_validation_testing(
@@ -90,7 +90,7 @@ def cross_validation_testing(
 
     mean_accuracy = 0
     mean_mse = 0
-    mean_confusion_matrix = np.zeros((7, 7))
+    total_confusion_matrix = np.zeros((7, 7))
 
     # 5-fold cross validation
     fold_size = len(data) // num_folds
@@ -124,26 +124,50 @@ def cross_validation_testing(
         acc, confusion_matrix, mse = validate_model(clf, X_test, y_test)
         mean_accuracy += acc
         mean_mse += mse
-        mean_confusion_matrix += confusion_matrix
+        total_confusion_matrix += confusion_matrix
 
     mean_accuracy /= num_folds
     mean_mse /= num_folds
-    mean_confusion_matrix /= num_folds
+    mean_confusion_matrix = total_confusion_matrix / total_confusion_matrix.sum(axis=0)
 
     print(f"Mean accuracy: {mean_accuracy}")
     print(f"Mean MSE: {mean_mse}")
+    print("Total confusion matrix")
+    print(total_confusion_matrix)
     print("Mean confusion matrix")
     print(mean_confusion_matrix)
-    return mean_accuracy, mean_confusion_matrix, mean_mse
 
+    # create table of precision, recall and f1 per class from confusion matrix
+    stat_data = []
+    for label in POSSIBLE_LABELS:
+        precision = (
+            total_confusion_matrix.loc[label, label]
+            / total_confusion_matrix.loc[label, :].sum()
+        )
+        recall = (
+            total_confusion_matrix.loc[label, label]
+            / total_confusion_matrix.loc[:, label].sum()
+        )
 
-# cross_validation_testing()
+        stat_table = stat_data.append(
+            {
+                "Label": label,
+                "Precision": precision,
+                "Recall": recall,
+                "F1": 2 * precision * recall / (precision + recall),
+            },
+        )
+    stat_table = pd.DataFrame(stat_data)
+    stat_table.set_index("Label", inplace=True)
 
-# for n in [50, 100, 200]:
-#     print(f"n_estimators = {n}")
-#     cross_validation_testing(model_settings=dict(n_estimators=n, max_depth=20))
+    print(stat_table)
+    print("Mean stats")
+    print(stat_table.mean())
+    # latex table
+    print(stat_table.to_latex())
 
-# cross_validation_testing(folder="clean_data")
+    return mean_accuracy, total_confusion_matrix, mean_mse
+
 
 # metrics_data = []
 
@@ -219,17 +243,19 @@ def train_final_model(
     print("Training stats:")
     validate_model(clf, X, y)
 
+    # print feature importance
+    print("Feature importance")
+    feature_importance = clf.feature_importances_
+    print("\n".join(f"{f}: {i}" for f, i in zip(X.columns, feature_importance)))
 
-# train_final_model(
-#     folder="clean_data",
-#     model_settings=dict(n_estimators=50, max_depth=10),
-#     window_size=20,
-# )
-# for n_estimators in [50, 100, 200]:
-#  for max_depth in [10, 20, 30]:
-#        print(f"Testing with n_estimators={n_estimators} and max_depth={max_depth}")
-#        model_settings = dict(n_estimators=n_estimators, max_depth=max_depth)
-#        cross_validation_testing(model_settings=model_settings, folder="clean_data")
+
+train_final_model(
+    folder="clean_data",
+    model_settings=dict(n_estimators=50, max_depth=10),
+    window_size=20,
+)
+
+# Generate statistics for final parameters.
 
 acc, confusion_matrix, mse = cross_validation_testing(
     folder="clean_data",
@@ -242,6 +268,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 plt.figure(figsize=(10, 7))
-sns.heatmap(confusion_matrix, annot=True, fmt=".2f", cmap="Blues")
+sns.heatmap(confusion_matrix, annot=True, fmt=".0f", cmap="Blues")
 plt.savefig("confusion_matrix.png")
 plt.show()
